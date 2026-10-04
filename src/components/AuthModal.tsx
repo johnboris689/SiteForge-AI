@@ -178,12 +178,12 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
 
   return (
     <div
-      className="fixed inset-0 z-50 min-h-[100dvh] overflow-y-auto bg-black/85 backdrop-blur-md px-3 py-4 sm:px-5 sm:py-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"
     >
-      <div className="w-full max-w-md min-h-[calc(100dvh-2rem)] sm:min-h-0 sm:my-auto mx-auto rounded-2xl border border-zinc-800 bg-[#0D0D12] p-5 sm:p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#0D0D12] p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
           <div>
             <h2 id="auth-modal-title" className="text-lg font-bold text-white">
@@ -256,8 +256,35 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         )}
 
         {(mode === 'login' || mode === 'signup') && (
-          <div className="mt-5 mb-4 rounded-xl border border-zinc-800/80 bg-[#101017] p-3 text-center">
-            <p className="text-[11px] text-zinc-400">Use your Site Forge AI account credentials below, or connect securely with a provider.</p>
+          <div className="mt-5 space-y-2.5">
+            {/* PRIMARY AUTHENTICATION: CONTINUE WITH GITHUB */}
+            <button
+              type="button"
+              onClick={handleGithubSignIn}
+              disabled={loading}
+              className="w-full py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-colors disabled:opacity-50"
+            >
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                />
+              </svg>
+              <span>Continue with GitHub</span>
+            </button>
+
+            <p className="text-[11px] text-center text-zinc-400">
+              Enables 1-click GitHub repository creation and direct code commits from Site Forge AI.
+            </p>
+
+            <div className="relative my-4 flex items-center justify-center">
+              <div className="border-t border-zinc-800 w-full"></div>
+              <span className="bg-[#0D0D12] px-3 text-xs text-zinc-500 whitespace-nowrap">
+                or use email credentials
+              </span>
+              <div className="border-t border-zinc-800 w-full"></div>
+            </div>
           </div>
         )}
 
@@ -384,38 +411,15 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         </form>
 
         {(mode === 'login' || mode === 'signup') && (
-          <div className="mt-5 pt-4 border-t border-zinc-800/80">
-            <p className="text-center text-[10px] uppercase tracking-[0.18em] text-zinc-500 mb-3">Connect with</p>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                aria-label="Continue with Google"
-                title="Continue with Google"
-                className="w-12 h-12 rounded-xl border border-zinc-700 bg-[#08080C] hover:bg-zinc-900 hover:border-zinc-500 text-white flex items-center justify-center transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-500/60"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="#4285F4" d="M21.35 12.23c0-.79-.07-1.55-.2-2.27H12v4.3h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.42Z"/>
-                  <path fill="#34A853" d="M12 21.99c2.63 0 4.84-.87 6.45-2.34l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.55 0-4.71-1.72-5.49-4.04H3.27v2.53A9.74 9.74 0 0 0 12 21.99Z"/>
-                  <path fill="#FBBC05" d="M6.51 14.08A5.86 5.86 0 0 1 6.2 12c0-.72.12-1.42.31-2.08V7.39H3.27A9.97 9.97 0 0 0 2.25 12c0 1.66.4 3.23 1.02 4.61l3.24-2.53Z"/>
-                  <path fill="#EA4335" d="M12 5.88c1.43 0 2.72.49 3.74 1.46l2.8-2.8C16.84 2.98 14.63 2 12 2a9.74 9.74 0 0 0-8.73 5.39l3.24 2.53C7.29 7.6 9.45 5.88 12 5.88Z"/>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGithubSignIn}
-                disabled={loading}
-                aria-label="Continue with GitHub"
-                title="Continue with GitHub"
-                className="w-12 h-12 rounded-xl border border-zinc-700 bg-[#08080C] hover:bg-zinc-900 hover:border-zinc-500 text-white flex items-center justify-center transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-500/60"
-              >
-                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                </svg>
-              </button>
-            </div>
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="w-full py-2 px-4 rounded-xl border border-zinc-800 bg-[#08080C] hover:bg-zinc-900 text-xs font-medium text-zinc-300 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <span>Or continue with Google Workspace</span>
+            </button>
           </div>
         )}
 

@@ -812,6 +812,25 @@ async function startServer() {
         });
       }
       const normalizedUrl = await validateAndNormalizeUrl(url);
+
+      // Prevent the public analyzer from crawling the Site Forge application itself.
+      // The authorization checkbox confirms user permission but does not disable
+      // server-side SSRF, safety, or application self-crawl protections.
+      const requestHost = String(req.get('host') || '').split(':')[0].toLowerCase();
+      const configuredAppHosts = [requestHost, 'siteforge.ai', 'www.siteforge.ai'];
+      if (process.env.RENDER_EXTERNAL_URL) {
+        try {
+          configuredAppHosts.push(new URL(process.env.RENDER_EXTERNAL_URL).hostname.toLowerCase());
+        } catch {
+          // Ignore an invalid optional Render URL; normal deployment host checking still applies.
+        }
+      }
+      if (configuredAppHosts.filter(Boolean).includes(normalizedUrl.hostname.toLowerCase())) {
+        return res.status(400).json({
+          error: 'Site Forge AI cannot analyze or copy its own website. Please enter another website you own or have permission to analyze.',
+        });
+      }
+
       const projectName = (name || normalizedUrl.hostname.replace(/^www\./, '')).trim();
 
       const [project] = await db
