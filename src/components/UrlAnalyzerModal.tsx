@@ -175,7 +175,7 @@ export function UrlAnalyzerModal({
     }
   };
 
-  const simpleChoice = SIMPLE_CHOICES.find((item) => item.id === simpleChoice);
+  const selectedSimpleChoice = SIMPLE_CHOICES.find((item) => item.id === simpleChoice);
 
   return (
     <div
@@ -242,7 +242,7 @@ export function UrlAnalyzerModal({
                       <label className="block text-sm font-bold text-white">How much of the website?</label>
                       <p className="text-xs text-zinc-500 mt-1">Pick the simple choice that matches what you want.</p>
                     </div>
-                    {simpleChoice && <span className="text-[10px] font-mono text-rose-400">{simpleChoice.title}</span>}
+                    {selectedSimpleChoice && <span className="text-[10px] font-mono text-rose-400">{selectedSimpleChoice.title}</span>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {SIMPLE_CHOICES.map((choice) => {
