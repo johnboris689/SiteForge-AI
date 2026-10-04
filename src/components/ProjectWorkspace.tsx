@@ -35,6 +35,8 @@ import {
 interface ProjectWorkspaceProps {
   projectId: number;
   authToken: string;
+  currentUser?: any;
+  onConnectGithub?: () => void;
   onBack: () => void;
   onProjectDeleted: () => void;
   onProjectDuplicated: (newProjectId: number) => void;
@@ -55,6 +57,8 @@ type WorkspaceTab =
 export function ProjectWorkspace({
   projectId,
   authToken,
+  currentUser,
+  onConnectGithub,
   onBack,
   onProjectDeleted,
   onProjectDuplicated,
@@ -93,6 +97,18 @@ export function ProjectWorkspace({
   // Asset filter state
   const [assetFilter, setAssetFilter] = useState<string>('all');
   const [inspectedPageHtml, setInspectedPageHtml] = useState<any | null>(null);
+
+  // GitHub Push & Repository Modal state
+  const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [githubCreateNew, setGithubCreateNew] = useState(true);
+  const [githubRepoName, setGithubRepoName] = useState('');
+  const [githubRepoDesc, setGithubRepoDesc] = useState('');
+  const [githubPrivate, setGithubPrivate] = useState(false);
+  const [githubCommitMsg, setGithubCommitMsg] = useState('');
+  const [githubPushing, setGithubPushing] = useState(false);
+  const [githubProgressStep, setGithubProgressStep] = useState<string | null>(null);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubSuccessResult, setGithubSuccessResult] = useState<any | null>(null);
 
   const fetchDetails = async () => {
     try {
@@ -140,6 +156,11 @@ export function ProjectWorkspace({
         } else if (payload.type === 'ai_progress') {
           if (payload.status === 'ready' || payload.status === 'failed') {
             setAiWorking(false);
+            fetchDetails();
+          }
+        } else if (payload.type === 'github_progress') {
+          setGithubProgressStep(payload.message || payload.step);
+          if (payload.step === 'complete' || payload.step === 'failed') {
             fetchDetails();
           }
         }
@@ -495,6 +516,81 @@ export function ProjectWorkspace({
     }
   };
 
+  const openGithubModal = () => {
+    const defaultSlug = project.name
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'siteforge-project';
+    const hasLinkedRepo = Boolean(project.githubRepositoryName && project.githubRepositoryUrl);
+    setGithubCreateNew(!hasLinkedRepo);
+    setGithubRepoName(project.githubRepositoryName || defaultSlug);
+    setGithubRepoDesc(`Reconstructed from ${project.originalUrl} with SiteForge AI`);
+    setGithubCommitMsg(
+      hasLinkedRepo
+        ? 'Update generated website from SiteForge AI'
+        : `Initial commit: Reconstructed ${project.name} with SiteForge AI`
+    );
+    setGithubError(null);
+    setGithubSuccessResult(null);
+    setGithubProgressStep(null);
+    setGithubModalOpen(true);
+  };
+
+  const repoNameValidationError = useMemo(() => {
+    if (!githubCreateNew) return null;
+    const trimmed = githubRepoName.trim();
+    if (!trimmed) return 'Repository name is required.';
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+      return 'Only alphanumeric characters, hyphens (-), underscores (_), and periods (.) are allowed.';
+    }
+    if (trimmed.startsWith('.') || trimmed.endsWith('.')) {
+      return 'Repository name cannot start or end with a period.';
+    }
+    return null;
+  }, [githubCreateNew, githubRepoName]);
+
+  const handlePushToGithub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (githubCreateNew && repoNameValidationError) {
+      setGithubError(repoNameValidationError);
+      return;
+    }
+    setGithubError(null);
+    setGithubSuccessResult(null);
+    setGithubPushing(true);
+    setGithubProgressStep('Preparing files...');
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/github/push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          createNewRepo: githubCreateNew,
+          repoName: githubRepoName.trim(),
+          description: githubRepoDesc.trim(),
+          isPrivate: githubPrivate,
+          commitMessage: githubCommitMsg.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to push project to GitHub.');
+      }
+      setDetails(data.projectDetails);
+      setGithubSuccessResult(data.pushResult);
+      setGithubProgressStep('Complete.');
+      onNotify(`Pushed ${data.pushResult.filesUploaded} files to ${data.pushResult.repositoryName}!`, 'success');
+    } catch (err: any) {
+      setGithubError(err.message || 'GitHub push failed.');
+      onNotify(err.message || 'GitHub push failed.', 'error');
+    } finally {
+      setGithubPushing(false);
+    }
+  };
+
   const filteredFiles = files.filter((f: any) =>
     f.filePath.toLowerCase().includes(fileSearch.toLowerCase())
   );
@@ -570,6 +666,14 @@ export function ProjectWorkspace({
           </button>
 
           <button
+            onClick={openGithubModal}
+            className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-white text-xs font-bold text-slate-950 flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap"
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            <span>{project.githubRepositoryUrl ? 'Resync to GitHub' : 'Push to GitHub'}</span>
+          </button>
+
+          <button
             onClick={handleDuplicateProject}
             className="px-3 py-2 rounded-lg border border-slate-800 hover:border-slate-700 text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors whitespace-nowrap"
           >
@@ -586,6 +690,54 @@ export function ProjectWorkspace({
           </button>
         </div>
       </div>
+
+      {/* Connected GitHub Repository Status Bar */}
+      {project.githubRepositoryUrl && (
+        <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-950/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-semibold">
+              GITHUB {project.githubSyncStatus?.toUpperCase() || 'SYNCED'}
+            </span>
+            <a
+              href={project.githubRepositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono font-bold text-white hover:text-indigo-300 flex items-center gap-1.5"
+            >
+              <span>
+                {project.githubUsername ? `${project.githubUsername}/` : ''}
+                {project.githubRepositoryName}
+              </span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <span className="text-slate-400 font-mono">branch: {project.githubDefaultBranch || 'main'}</span>
+            {project.lastGithubCommit && (
+              <a
+                href={project.lastGithubCommitUrl || `${project.githubRepositoryUrl}/commit/${project.lastGithubCommit}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-400 hover:underline font-mono"
+              >
+                commit {project.lastGithubCommit.slice(0, 7)}
+              </a>
+            )}
+            {project.lastGithubPush && (
+              <span className="text-slate-400 font-mono">
+                · Pushed {new Date(project.lastGithubPush).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openGithubModal}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              <span>Commit & Resync Changes</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Live Crawl Progress Bar if running or recently completed */}
       {latestJob && (
@@ -1542,7 +1694,60 @@ export function ProjectWorkspace({
 
       {/* TAB 9: DOWNLOAD & EXPORT OPTIONS */}
       {activeTab === 'export' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-6">
+          {/* GitHub Repository Export & Sync Card */}
+          <div className="p-6 rounded-xl border border-indigo-500/40 bg-[#0D1320] flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-indigo-400" />
+                <h3 className="text-base font-bold text-white">
+                  {project.githubRepositoryUrl
+                    ? `Connected GitHub Repository: ${project.githubUsername}/${project.githubRepositoryName}`
+                    : 'Export & Push Project Directly to GitHub'}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Create a new public or private GitHub repository and commit the entire reconstructed source tree (`src/`, `package.json`, SQL migrations, standalone preview, and `ANALYSIS_REPORT.md`) via the GitHub Git Data API.
+              </p>
+              {project.githubRepositoryUrl && (
+                <div className="flex flex-wrap items-center gap-4 pt-1 text-xs font-mono text-indigo-300">
+                  <a
+                    href={project.githubRepositoryUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline flex items-center gap-1"
+                  >
+                    <span>{project.githubRepositoryUrl}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <span>Branch: {project.githubDefaultBranch || 'main'}</span>
+                  {project.lastGithubCommit && <span>Last Commit: {project.lastGithubCommit.slice(0, 7)}</span>}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {project.githubRepositoryUrl && (
+                <a
+                  href={project.githubRepositoryUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2.5 rounded-lg border border-slate-700 hover:border-slate-500 text-xs font-semibold text-white flex items-center gap-2"
+                >
+                  <span>Open on GitHub</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+              <button
+                onClick={openGithubModal}
+                className="px-5 py-2.5 rounded-lg bg-white hover:bg-slate-100 text-slate-950 text-xs font-bold flex items-center gap-2 shadow-md transition-colors"
+              >
+                <GitBranch className="w-4 h-4" />
+                <span>{project.githubRepositoryUrl ? 'Commit & Resync to GitHub' : 'Create Repo & Push to GitHub'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
               title: 'Download Entire Project (.ZIP)',
@@ -1587,6 +1792,237 @@ export function ProjectWorkspace({
               </button>
             </div>
           ))}
+          </div>
+        </div>
+      )}
+
+      {/* GITHUB REPOSITORY CREATION & PUSH MODAL */}
+      {githubModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-[#0F1624] p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-indigo-400" />
+                  <span>Push Reconstructed Project to GitHub</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Commit generated source files, database migrations, and architecture documentation directly to your GitHub account.
+                </p>
+              </div>
+              <button
+                onClick={() => setGithubModalOpen(false)}
+                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            {!currentUser?.githubConnected ? (
+              <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-950/20 space-y-3">
+                <div className="text-xs font-semibold text-amber-200">
+                  GitHub Account Not Connected
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Connect your GitHub account via OAuth so SiteForge AI can create repositories and push commits on your behalf.
+                </p>
+                {onConnectGithub && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGithubModalOpen(false);
+                      onConnectGithub();
+                    }}
+                    className="px-4 py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-950 text-xs font-bold"
+                  >
+                    Connect GitHub Account →
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-between text-xs">
+                <span className="text-slate-400">Authenticated GitHub Account:</span>
+                <span className="font-mono font-bold text-emerald-400">@{currentUser.githubUsername}</span>
+              </div>
+            )}
+
+            {githubError && (
+              <div className="p-3 rounded-lg border border-red-500/40 bg-red-950/30 text-xs text-red-200 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{githubError}</span>
+              </div>
+            )}
+
+            {githubProgressStep && (
+              <div className="p-3 rounded-lg border border-indigo-500/40 bg-indigo-950/20 text-xs font-mono text-indigo-200 flex items-center gap-2.5">
+                {githubPushing ? (
+                  <RefreshCw className="w-4 h-4 text-indigo-400 animate-spin shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                )}
+                <span>{githubProgressStep}</span>
+              </div>
+            )}
+
+            {githubSuccessResult && (
+              <div className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/20 space-y-2 text-xs">
+                <div className="font-bold text-emerald-300">
+                  Successfully pushed {githubSuccessResult.filesUploaded} files to {githubSuccessResult.repositoryName}!
+                </div>
+                <div className="flex flex-wrap items-center gap-3 pt-1 font-mono">
+                  <a
+                    href={githubSuccessResult.repositoryUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-semibold flex items-center gap-1.5"
+                  >
+                    <span>Open Repository on GitHub</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <a
+                    href={githubSuccessResult.commitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-300 hover:underline"
+                  >
+                    View Commit ({githubSuccessResult.commitSha.slice(0, 7)})
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handlePushToGithub} className="space-y-4">
+              {project.githubRepositoryName && (
+                <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setGithubCreateNew(false)}
+                    className={`py-2 rounded-md font-semibold transition-colors ${
+                      !githubCreateNew ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Resync to {project.githubRepositoryName}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGithubCreateNew(true)}
+                    className={`py-2 rounded-md font-semibold transition-colors ${
+                      githubCreateNew ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Create New Repository
+                  </button>
+                </div>
+              )}
+
+              {githubCreateNew && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Repository Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={githubRepoName}
+                      onChange={(e) => setGithubRepoName(e.target.value)}
+                      placeholder="my-reconstructed-site"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+                    />
+                    {repoNameValidationError && (
+                      <p className="text-[11px] text-amber-400 mt-1">{repoNameValidationError}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Description (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={githubRepoDesc}
+                      onChange={(e) => setGithubRepoDesc(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Repository Visibility
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setGithubPrivate(false)}
+                        className={`p-3 rounded-lg border text-left transition-colors ${
+                          !githubPrivate
+                            ? 'border-indigo-500 bg-indigo-950/30 text-white'
+                            : 'border-slate-800 bg-slate-950 text-slate-400'
+                        }`}
+                      >
+                        <div className="font-bold">Public Repository</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">Visible to anyone on GitHub</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGithubPrivate(true)}
+                        className={`p-3 rounded-lg border text-left transition-colors ${
+                          githubPrivate
+                            ? 'border-indigo-500 bg-indigo-950/30 text-white'
+                            : 'border-slate-800 bg-slate-950 text-slate-400'
+                        }`}
+                      >
+                        <div className="font-bold">Private Repository</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">Only accessible to you</div>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Commit Message
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={githubCommitMsg}
+                  onChange={(e) => setGithubCommitMsg(e.target.value)}
+                  placeholder="Update generated website from SiteForge AI"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGithubModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-700 text-xs text-slate-300 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={githubPushing || !currentUser?.githubConnected || Boolean(githubCreateNew && repoNameValidationError)}
+                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white flex items-center gap-2 disabled:opacity-50"
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>
+                    {githubPushing
+                      ? 'Pushing to GitHub...'
+                      : githubCreateNew
+                      ? 'Create Repository & Push Files'
+                      : 'Commit & Push Updates'}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

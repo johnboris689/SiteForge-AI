@@ -13,6 +13,13 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').notNull().default(true),
   resetTokenHash: text('reset_token_hash'),
   resetTokenExpiresAt: timestamp('reset_token_expires_at'),
+  githubId: text('github_id'),
+  githubUsername: text('github_username'),
+  githubAvatarUrl: text('github_avatar_url'),
+  githubConnected: boolean('github_connected').notNull().default(false),
+  githubTokenEncrypted: text('github_token_encrypted'),
+  githubScopes: text('github_scopes'),
+  githubConnectedAt: timestamp('github_connected_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -40,6 +47,16 @@ export const projects = pgTable('projects', {
   analysisScore: integer('analysis_score').notNull().default(0),
   aiStatus: text('ai_status').notNull().default('not_started'), // not_started | reconstructing | ready | failed
   configJson: text('config_json').notNull().default('{}'),
+  githubConnected: boolean('github_connected').notNull().default(false),
+  githubUsername: text('github_username'),
+  githubRepositoryName: text('github_repository_name'),
+  githubRepositoryUrl: text('github_repository_url'),
+  githubRepositoryId: text('github_repository_id'),
+  githubDefaultBranch: text('github_default_branch').notNull().default('main'),
+  lastGithubCommit: text('last_github_commit'),
+  lastGithubCommitUrl: text('last_github_commit_url'),
+  lastGithubPush: timestamp('last_github_push'),
+  githubSyncStatus: text('github_sync_status').notNull().default('not_pushed'), // not_pushed | syncing | synced | failed
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastAnalysisAt: timestamp('last_analysis_at').defaultNow().notNull(),
 });

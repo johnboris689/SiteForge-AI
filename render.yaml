@@ -17,12 +17,26 @@ services:
         value: gemini-3.8-flash
       - key: GEMINI_API_KEY
         sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CALLBACK_URL
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: siteforge-postgres
+          property: connectionString
       - key: SQL_HOST
         fromDatabase:
           name: siteforge-postgres
           property: host
+      - key: SQL_PORT
+        fromDatabase:
+          name: siteforge-postgres
+          property: port
       - key: SQL_USER
         fromDatabase:
           name: siteforge-postgres

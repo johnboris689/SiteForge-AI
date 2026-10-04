@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
-import { db } from './src/db/index.ts';
+import { db, ensureDatabaseSchema } from './src/db/index.ts';
 import {
   users,
   projects,
@@ -26,9 +26,11 @@ import {
 import { eq, desc, asc, and, sql } from 'drizzle-orm';
 import {
   createLocalUser,
+  getOrCreateGithubUser,
   getUserByEmail,
   getUserById,
   createSession,
+  getSessionUser,
   deleteSessionByToken,
   setResetToken,
   consumeResetTokenAndSetPassword,
@@ -51,6 +53,18 @@ import {
   getActiveAIProvider,
 } from './src/server/ai-provider.ts';
 import { buildProjectZipArchive } from './src/server/zip-builder.ts';
+import {
+  getGithubConfig,
+  resolveGithubCallbackUrl,
+  buildGithubAuthorizeUrl,
+  consumeOAuthState,
+  exchangeGithubCodeForToken,
+  fetchGithubUserProfile,
+  encryptGithubToken,
+  createGithubRepositoryForUser,
+  pushProjectToGithubRepository,
+  disconnectGithubForUser,
+} from './src/server/github.ts';
 
 dotenv.config();
 
@@ -58,6 +72,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  await ensureDatabaseSchema();
+
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
@@ -86,11 +102,13 @@ async function startServer() {
   app.get('/ready', async (_req, res) => {
     try {
       await db.select({ id: users.id }).from(users).limit(1);
+      const ghCfg = getGithubConfig();
       res.json({
         status: 'ready',
         database: 'connected',
         aiProvider: process.env.AI_PROVIDER || 'gemini',
         aiConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'),
+        githubConfigured: ghCfg.isConfigured,
       });
     } catch (error: any) {
       res.status(503).json({
@@ -133,6 +151,12 @@ async function startServer() {
         '/api/projects/{id}/download': {
           get: { summary: 'Generate and download validated project ZIP archive' },
         },
+        '/api/projects/{id}/github/create-repo': {
+          post: { summary: 'Create a new GitHub repository for the reconstructed project' },
+        },
+        '/api/projects/{id}/github/push': {
+          post: { summary: 'Commit and push all generated project files to GitHub' },
+        },
         '/api/jobs/{id}/cancel': {
           post: { summary: 'Cancel an active background crawl job' },
         },
@@ -144,8 +168,233 @@ async function startServer() {
   });
 
   // ============================================================================
-  // AUTHENTICATION ROUTES
+  // GITHUB OAUTH & AUTHENTICATION ROUTES
   // ============================================================================
+  app.get('/api/auth/github/status', (req, res) => {
+    const cfg = getGithubConfig();
+    const origin = (req.query.origin as string) || `${req.protocol}://${req.get('host')}`;
+    const callbackUrl = resolveGithubCallbackUrl(origin);
+    res.json({
+      configured: cfg.isConfigured,
+      callbackUrl,
+      hasClientId: Boolean(cfg.clientId && cfg.clientId !== 'YOUR_GITHUB_CLIENT_ID'),
+      hasClientSecret: Boolean(cfg.clientSecret && cfg.clientSecret !== 'YOUR_GITHUB_CLIENT_SECRET'),
+    });
+  });
+
+  app.get('/api/auth/github/url', async (req, res) => {
+    try {
+      const cfg = getGithubConfig();
+      const origin = (req.query.origin as string) || `${req.protocol}://${req.get('host')}`;
+      const callbackUrl = resolveGithubCallbackUrl(origin);
+
+      if (!cfg.isConfigured) {
+        return res.status(503).json({
+          error:
+            'GitHub integration is not configured. Missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET environment variables.',
+          configurationError: true,
+          callbackUrl,
+          requiredEnvVars: ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'GITHUB_CALLBACK_URL'],
+        });
+      }
+
+      let existingUserId: number | undefined;
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer sf_sess_')) {
+        const rawToken = authHeader.split('Bearer ')[1].trim();
+        const sessUser = await getSessionUser(rawToken);
+        if (sessUser) existingUserId = sessUser.id;
+      }
+
+      const authData = buildGithubAuthorizeUrl(origin, existingUserId);
+      res.json(authData);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to construct GitHub OAuth URL.' });
+    }
+  });
+
+  app.get(['/auth/github', '/api/auth/github'], (req, res) => {
+    try {
+      const origin = (req.query.origin as string) || `${req.protocol}://${req.get('host')}`;
+      const cfg = getGithubConfig();
+      if (!cfg.isConfigured) {
+        const callbackUrl = resolveGithubCallbackUrl(origin);
+        return res.status(503).send(`
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>GitHub OAuth Configuration Required — SiteForge AI</title>
+              <style>
+                body { background: #090D16; color: #F8FAFC; font-family: system-ui, sans-serif; padding: 2.5rem; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+                .card { background: #0F1624; border: 1px solid #1E293B; border-radius: 12px; padding: 1.5rem; }
+                code { background: #020617; padding: 0.2rem 0.4rem; border-radius: 4px; color: #818CF8; font-family: monospace; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <h2>GitHub integration is not configured</h2>
+                <p>Set the following environment variables in Render or AI Studio Secrets:</p>
+                <ul>
+                  <li><code>GITHUB_CLIENT_ID</code></li>
+                  <li><code>GITHUB_CLIENT_SECRET</code></li>
+                  <li><code>GITHUB_CALLBACK_URL</code> = <code>${callbackUrl}</code></li>
+                </ul>
+              </div>
+            </body>
+          </html>
+        `);
+      }
+      const { url } = buildGithubAuthorizeUrl(origin);
+      res.redirect(url);
+    } catch (error: any) {
+      res.status(500).send(error.message || 'GitHub OAuth redirect failed.');
+    }
+  });
+
+  const githubCallbackHandler = async (req: express.Request, res: express.Response) => {
+    try {
+      const code = req.query.code as string | undefined;
+      const state = req.query.state as string | undefined;
+      const errorParam = req.query.error as string | undefined;
+      const errorDesc = req.query.error_description as string | undefined;
+
+      if (errorParam) {
+        throw new Error(errorDesc || `GitHub authorization was denied (${errorParam}).`);
+      }
+      if (!code || !state) {
+        throw new Error('Missing OAuth code or CSRF state parameter from GitHub callback.');
+      }
+
+      const stateEntry = consumeOAuthState(state);
+      if (!stateEntry) {
+        throw new Error('Invalid or expired OAuth CSRF state parameter. Please try signing in again.');
+      }
+
+      const { accessToken, scope } = await exchangeGithubCodeForToken(code, stateEntry.redirectUri);
+      const profile = await fetchGithubUserProfile(accessToken);
+      const encryptedToken = encryptGithubToken(accessToken);
+
+      const user = await getOrCreateGithubUser({
+        githubId: profile.id,
+        githubUsername: profile.login,
+        email: profile.email,
+        name: profile.name,
+        avatarUrl: profile.avatarUrl,
+        encryptedToken,
+        scopes: scope,
+        existingUserId: stateEntry.userId,
+      });
+
+      if (user.status === 'suspended') {
+        throw new Error('This account has been suspended by an administrator.');
+      }
+
+      const sessionToken = await createSession(user.id);
+
+      await createAuditLog({
+        userId: user.id,
+        action: 'GITHUB_OAUTH_LOGIN',
+        status: 'success',
+        details: `Authenticated via GitHub OAuth as @${profile.login}`,
+        ipAddress: req.ip,
+      });
+
+      const safeUserPayload = {
+        id: user.id,
+        uid: user.uid,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        plan: user.plan,
+        status: user.status,
+        githubConnected: user.githubConnected,
+        githubUsername: user.githubUsername,
+        githubAvatarUrl: user.githubAvatarUrl,
+        githubScopes: user.githubScopes,
+      };
+
+      res.send(`
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>GitHub Connected — SiteForge AI</title>
+            <style>
+              body { background: #090D16; color: #F8FAFC; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+              .box { background: #0F1624; border: 1px solid #1E293B; border-radius: 12px; padding: 2rem; text-align: center; max-width: 420px; }
+            </style>
+          </head>
+          <body>
+            <div class="box">
+              <h3>GitHub Authenticated (@${profile.login})</h3>
+              <p>Returning to SiteForge AI workspace...</p>
+            </div>
+            <script>
+              (function() {
+                var payload = {
+                  type: 'OAUTH_AUTH_SUCCESS',
+                  provider: 'github',
+                  token: ${JSON.stringify(sessionToken)},
+                  user: ${JSON.stringify(safeUserPayload)}
+                };
+                if (window.opener) {
+                  window.opener.postMessage(payload, '*');
+                  window.close();
+                } else {
+                  window.location.href = '/?github_token=' + encodeURIComponent(payload.token);
+                }
+              })();
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error: any) {
+      const errMsg = error.message || 'GitHub authentication failed.';
+      res.status(400).send(`
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>GitHub Authentication Error — SiteForge AI</title>
+            <style>
+              body { background: #090D16; color: #F8FAFC; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+              .box { background: #0F1624; border: 1px solid #7F1D1D; border-radius: 12px; padding: 2rem; text-align: center; max-width: 460px; }
+              .err { color: #FCA5A5; font-size: 0.9rem; margin: 1rem 0; }
+              a, button { display: inline-block; margin-top: 1rem; padding: 0.6rem 1.2rem; background: #4F46E5; color: #fff; border: none; border-radius: 8px; text-decoration: none; cursor: pointer; font-weight: 600; }
+            </style>
+          </head>
+          <body>
+            <div class="box">
+              <h3>GitHub Sign-In Could Not Complete</h3>
+              <p class="err">${errMsg.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+              <button onclick="if(window.opener){window.opener.postMessage({type:'OAUTH_AUTH_ERROR',error:${JSON.stringify(errMsg)}},'*');window.close();}else{window.location.href='/';}">Return to SiteForge AI</button>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+  };
+
+  app.get(
+    [
+      '/auth/github/callback',
+      '/auth/github/callback/',
+      '/api/auth/github/callback',
+      '/api/auth/github/callback/',
+    ],
+    githubCallbackHandler
+  );
+
+  app.post('/api/github/disconnect', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await disconnectGithubForUser(req.authUser!.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to disconnect GitHub account.' });
+    }
+  });
+
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, name, password } = req.body;
@@ -263,6 +512,11 @@ async function startServer() {
           role: user.role,
           plan: user.plan,
           status: user.status,
+          githubConnected: user.githubConnected,
+          githubUsername: user.githubUsername,
+          githubAvatarUrl: user.githubAvatarUrl,
+          githubScopes: user.githubScopes,
+          githubConnectedAt: user.githubConnectedAt,
           createdAt: user.createdAt,
         },
         subscription: sub || null,
@@ -1057,6 +1311,75 @@ async function startServer() {
       res.send(details.analysis.summaryReportMd);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================================
+  // GITHUB REPOSITORY CREATION & PROJECT PUSH ROUTES
+  // ============================================================================
+  app.post('/api/projects/:id/github/create-repo', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const isAdmin = req.authUser!.role === 'ADMIN' || req.authUser!.role === 'SUPER_ADMIN';
+      const authorized = await getProjectByIdForUser(projectId, req.authUser!.id, isAdmin);
+      if (!authorized) {
+        return res.status(404).json({ error: 'Project not found or access denied.' });
+      }
+
+      const { name, description, isPrivate } = req.body;
+      const repo = await createGithubRepositoryForUser(req.authUser!.id, {
+        name: name || authorized.name.toLowerCase().replace(/[^a-z0-9-_]+/g, '-'),
+        description: description || `Website analyzed and reconstructed from ${authorized.originalUrl} with SiteForge AI`,
+        isPrivate: Boolean(isPrivate),
+      });
+
+      await db
+        .update(projects)
+        .set({
+          githubConnected: true,
+          githubUsername: repo.ownerLogin,
+          githubRepositoryName: repo.name,
+          githubRepositoryUrl: repo.htmlUrl,
+          githubRepositoryId: repo.id,
+          githubDefaultBranch: repo.defaultBranch,
+        })
+        .where(eq(projects.id, projectId));
+
+      const updatedDetails = await getProjectFullDetails(projectId);
+      res.status(201).json({
+        repository: repo,
+        projectDetails: updatedDetails,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Failed to create GitHub repository.' });
+    }
+  });
+
+  app.post('/api/projects/:id/github/push', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const isAdmin = req.authUser!.role === 'ADMIN' || req.authUser!.role === 'SUPER_ADMIN';
+      const authorized = await getProjectByIdForUser(projectId, req.authUser!.id, isAdmin);
+      if (!authorized) {
+        return res.status(404).json({ error: 'Project not found or access denied.' });
+      }
+
+      const { createNewRepo, repoName, description, isPrivate, commitMessage } = req.body;
+      const pushResult = await pushProjectToGithubRepository(projectId, req.authUser!.id, {
+        createNewRepo: Boolean(createNewRepo),
+        repoName,
+        description,
+        isPrivate: Boolean(isPrivate),
+        commitMessage,
+      });
+
+      const updatedDetails = await getProjectFullDetails(projectId);
+      res.json({
+        pushResult,
+        projectDetails: updatedDetails,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || 'Failed to push project to GitHub.' });
     }
   });
 

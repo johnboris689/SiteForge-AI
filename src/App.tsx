@@ -36,6 +36,7 @@ import {
   ExternalLink,
   RotateCcw,
   Square,
+  GitBranch,
 } from 'lucide-react';
 
 type DashboardSection =
@@ -128,10 +129,48 @@ export default function App() {
     }, 4500);
   };
 
-  // Sync Firebase Auth listener
+  // Sync Firebase Auth listener & URL/PostMessage GitHub OAuth handler
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ghToken = params.get('github_token');
+    if (ghToken) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setAuthToken(ghToken);
+      setViewMode('dashboard');
+      loadUserProfileAndDashboard(ghToken);
+      showToast('Authenticated with GitHub!', 'success');
+    }
+
+    const handleOAuthMessage = (event: MessageEvent) => {
+      const origin = event.origin || '';
+      if (
+        origin &&
+        !origin.endsWith('.run.app') &&
+        !origin.endsWith('.onrender.com') &&
+        !origin.includes('localhost') &&
+        origin !== window.location.origin
+      ) {
+        return;
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.token) {
+        setAuthToken(event.data.token);
+        if (event.data.user) setCurrentUser(event.data.user);
+        setViewMode('dashboard');
+        loadUserProfileAndDashboard(event.data.token);
+        showToast(
+          event.data.user?.githubUsername
+            ? `Connected GitHub as @${event.data.user.githubUsername}`
+            : 'GitHub connected!',
+          'success'
+        );
+      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+        showToast(event.data.error || 'GitHub OAuth error.', 'error');
+      }
+    };
+    window.addEventListener('message', handleOAuthMessage);
+
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser && !authToken) {
+      if (fbUser && !authToken && !ghToken) {
         try {
           const token = await fbUser.getIdToken();
           await loadUserProfileAndDashboard(token);
@@ -140,7 +179,10 @@ export default function App() {
         }
       }
     });
-    return () => unsub();
+    return () => {
+      window.removeEventListener('message', handleOAuthMessage);
+      unsub();
+    };
   }, []);
 
   const loadUserProfileAndDashboard = async (token: string) => {
@@ -320,6 +362,47 @@ export default function App() {
     }
   };
 
+  const handleConnectGithub = async () => {
+    try {
+      const origin = window.location.origin;
+      const res = await fetch(`/api/auth/github/url?origin=${encodeURIComponent(origin)}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      const data = await res.json();
+      if (res.status === 503 && data.configurationError) {
+        showToast(
+          `${data.error} Set Callback URL: ${data.callbackUrl || `${origin}/auth/github/callback`}`,
+          'error'
+        );
+        return;
+      }
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Failed to initiate GitHub OAuth.');
+      }
+      const popup = window.open(data.url, 'github_oauth_popup', 'width=600,height=720');
+      if (!popup) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to connect GitHub.', 'error');
+    }
+  };
+
+  const handleDisconnectGithub = async () => {
+    if (!authToken) return;
+    try {
+      const res = await fetch('/api/github/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) throw new Error('Failed to disconnect GitHub.');
+      await loadUserProfileAndDashboard(authToken);
+      showToast('Disconnected GitHub account and cleared encrypted token.', 'info');
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
   const filteredProjects = useMemo(() => {
     return dashboardData.projects.filter((p) => {
       const matchesSearch =
@@ -472,7 +555,7 @@ export default function App() {
               <div className="p-4 border-t border-slate-800/80 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img
-                    src={avatarImg}
+                    src={currentUser.githubAvatarUrl || avatarImg}
                     alt={currentUser.name}
                     referrerPolicy="no-referrer"
                     className="w-8 h-8 rounded-full object-cover border border-slate-700 shrink-0"
@@ -480,7 +563,9 @@ export default function App() {
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white truncate">{currentUser.name}</div>
                     <div className="text-[11px] font-mono text-slate-400 truncate">
-                      {currentUser.plan} · {currentUser.role}
+                      {currentUser.githubConnected && currentUser.githubUsername
+                        ? `@${currentUser.githubUsername} · ${currentUser.plan}`
+                        : `${currentUser.plan} · ${currentUser.role}`}
                     </div>
                   </div>
                 </div>
@@ -619,6 +704,8 @@ export default function App() {
                 <ProjectWorkspace
                   projectId={selectedProjectId}
                   authToken={authToken}
+                  currentUser={currentUser}
+                  onConnectGithub={handleConnectGithub}
                   onBack={() => setSelectedProjectId(null)}
                   onProjectDeleted={() => {
                     setSelectedProjectId(null);
@@ -828,6 +915,20 @@ export default function App() {
                                   <div className="text-[11px] font-mono text-slate-500 truncate">
                                     Stack: {techs.map((t) => t.name).join(' · ')}
                                   </div>
+                                )}
+                                {p.githubRepositoryUrl && (
+                                  <a
+                                    href={p.githubRepositoryUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-400 hover:underline pt-1"
+                                  >
+                                    <GitBranch className="w-3 h-3" />
+                                    <span>
+                                      {p.githubUsername ? `${p.githubUsername}/` : ''}
+                                      {p.githubRepositoryName}
+                                    </span>
+                                  </a>
                                 )}
                               </div>
 
@@ -1041,7 +1142,62 @@ export default function App() {
 
                   {/* SECTION: ACCOUNT SETTINGS */}
                   {activeSection === 'settings' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-6">
+                      {/* GitHub OAuth Connection Card */}
+                      <div className="p-5 rounded-xl border border-slate-800 bg-[#0D1320] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <GitBranch className="w-4 h-4 text-indigo-400" />
+                            <h2 className="text-sm font-bold text-white">GitHub Integration & Repository Sync</h2>
+                            {currentUser?.githubConnected ? (
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-300">
+                                CONNECTED
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-400">
+                                NOT CONNECTED
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            {currentUser?.githubConnected
+                              ? `Authenticated as @${currentUser.githubUsername} (Scopes: ${currentUser.githubScopes || 'read:user, user:email, repo'}). Access token is AES-256-GCM encrypted at rest.`
+                              : 'Connect your GitHub account to enable 1-click repository creation and direct code commits from SiteForge AI.'}
+                          </p>
+                          <div className="text-[11px] font-mono text-slate-500">
+                            OAuth Callback URL: {window.location.origin}/auth/github/callback
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {currentUser?.githubConnected ? (
+                            <>
+                              <button
+                                onClick={handleConnectGithub}
+                                className="px-3.5 py-2 rounded-lg border border-slate-700 hover:border-slate-500 text-xs font-semibold text-white"
+                              >
+                                Reconnect GitHub
+                              </button>
+                              <button
+                                onClick={handleDisconnectGithub}
+                                className="px-3.5 py-2 rounded-lg border border-red-500/40 text-red-300 hover:bg-red-950/40 text-xs font-semibold"
+                              >
+                                Disconnect
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={handleConnectGithub}
+                              className="px-4 py-2.5 rounded-lg bg-white hover:bg-slate-100 text-slate-950 text-xs font-bold flex items-center gap-2 shadow-sm"
+                            >
+                              <GitBranch className="w-3.5 h-3.5" />
+                              <span>Connect GitHub Account</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="p-5 rounded-xl border border-slate-800 bg-[#0D1320] space-y-4">
                         <h2 className="text-sm font-bold text-white">Change Account Password</h2>
                         <form onSubmit={handleChangePassword} className="space-y-3">
@@ -1102,6 +1258,7 @@ export default function App() {
                             </button>
                           </div>
                         )}
+                      </div>
                       </div>
                     </div>
                   )}

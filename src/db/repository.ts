@@ -84,6 +84,123 @@ export async function getOrCreateFirebaseUser(uid: string, email: string, name?:
   }
 }
 
+export async function getOrCreateGithubUser(params: {
+  githubId: string;
+  githubUsername: string;
+  email: string;
+  name: string;
+  avatarUrl: string;
+  encryptedToken: string;
+  scopes: string;
+  existingUserId?: number;
+}) {
+  try {
+    const normalizedEmail = params.email.toLowerCase().trim();
+    const isSuperAdmin = normalizedEmail === 'talkdavidjohn@gmail.com';
+
+    // If connecting GitHub to an already logged-in user session
+    if (params.existingUserId) {
+      const [updated] = await db
+        .update(users)
+        .set({
+          githubId: params.githubId,
+          githubUsername: params.githubUsername,
+          githubAvatarUrl: params.avatarUrl,
+          githubConnected: true,
+          githubTokenEncrypted: params.encryptedToken,
+          githubScopes: params.scopes,
+          githubConnectedAt: new Date(),
+        })
+        .where(eq(users.id, params.existingUserId))
+        .returning();
+      return updated;
+    }
+
+    // Check if user already exists by githubId or email
+    const existingByGithub = await db.select().from(users).where(eq(users.githubId, params.githubId));
+    if (existingByGithub.length > 0) {
+      const current = existingByGithub[0];
+      const [updated] = await db
+        .update(users)
+        .set({
+          githubUsername: params.githubUsername,
+          githubAvatarUrl: params.avatarUrl,
+          githubConnected: true,
+          githubTokenEncrypted: params.encryptedToken,
+          githubScopes: params.scopes,
+          githubConnectedAt: new Date(),
+        })
+        .where(eq(users.id, current.id))
+        .returning();
+      return updated;
+    }
+
+    const existingByEmail = await db.select().from(users).where(eq(users.email, normalizedEmail));
+    if (existingByEmail.length > 0) {
+      const current = existingByEmail[0];
+      const [updated] = await db
+        .update(users)
+        .set({
+          githubId: params.githubId,
+          githubUsername: params.githubUsername,
+          githubAvatarUrl: params.avatarUrl,
+          githubConnected: true,
+          githubTokenEncrypted: params.encryptedToken,
+          githubScopes: params.scopes,
+          githubConnectedAt: new Date(),
+          role: isSuperAdmin ? 'SUPER_ADMIN' : current.role,
+        })
+        .where(eq(users.id, current.id))
+        .returning();
+      return updated;
+    }
+
+    const allUsers = await db.select({ id: users.id }).from(users).limit(1);
+    const initialRole = isSuperAdmin || allUsers.length === 0 ? 'SUPER_ADMIN' : 'USER';
+
+    const [created] = await db
+      .insert(users)
+      .values({
+        uid: `github_${params.githubId}`,
+        email: normalizedEmail,
+        name: params.name || params.githubUsername,
+        role: initialRole,
+        plan: 'Pro',
+        status: 'active',
+        emailVerified: true,
+        githubId: params.githubId,
+        githubUsername: params.githubUsername,
+        githubAvatarUrl: params.avatarUrl,
+        githubConnected: true,
+        githubTokenEncrypted: params.encryptedToken,
+        githubScopes: params.scopes,
+        githubConnectedAt: new Date(),
+      })
+      .returning();
+
+    await db.insert(subscriptions).values({
+      userId: created.id,
+      tier: 'Pro',
+      status: 'active',
+      crawlPagesLimit: 10000,
+      storageLimitBytes: 1073741824,
+      aiGenerationsLimit: 1000,
+    });
+
+    await createNotification(
+      created.id,
+      'GitHub Account Connected',
+      `Authenticated as @${params.githubUsername}. You can now create repositories and push reconstructed projects directly to GitHub.`,
+      'success'
+    );
+
+    return created;
+  } catch (error: any) {
+    console.error('Database error in getOrCreateGithubUser:', error);
+    throw new Error(error.message || 'Failed to synchronize GitHub user account.', { cause: error });
+  }
+}
+
 export async function createLocalUser(email: string, name: string, passwordHash: string) {
   try {
     const normalizedEmail = email.toLowerCase().trim();

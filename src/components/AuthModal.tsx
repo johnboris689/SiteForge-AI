@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { X, Lock, Mail, User, KeyRound, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -19,10 +19,74 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [githubConfigHelp, setGithubConfigHelp] = useState<{ callbackUrl: string } | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [generatedSandboxToken, setGeneratedSandboxToken] = useState<string | null>(null);
 
+  useEffect(() => {
+    setMode(initialMode);
+    setError(null);
+    setGithubConfigHelp(null);
+  }, [initialMode, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMessage = (event: MessageEvent) => {
+      const origin = event.origin || '';
+      if (
+        origin &&
+        !origin.endsWith('.run.app') &&
+        !origin.endsWith('.onrender.com') &&
+        !origin.includes('localhost') &&
+        origin !== window.location.origin
+      ) {
+        return;
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data?.token) {
+        setLoading(false);
+        onSuccess(event.data.token, event.data.user);
+        onClose();
+      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+        setLoading(false);
+        setError(event.data.error || 'GitHub authentication failed.');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isOpen, onSuccess, onClose]);
+
   if (!isOpen) return null;
+
+  const handleGithubSignIn = async () => {
+    setError(null);
+    setGithubConfigHelp(null);
+    setLoading(true);
+    try {
+      const origin = window.location.origin;
+      const res = await fetch(`/api/auth/github/url?origin=${encodeURIComponent(origin)}`);
+      const data = await res.json();
+
+      if (res.status === 503 && data.configurationError) {
+        setError(data.error);
+        setGithubConfigHelp({ callbackUrl: data.callbackUrl || `${origin}/auth/github/callback` });
+        setLoading(false);
+        return;
+      }
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Failed to initiate GitHub OAuth flow.');
+      }
+
+      const popup = window.open(data.url, 'github_oauth_popup', 'width=600,height=720');
+      if (!popup) {
+        window.location.href = data.url;
+      } else {
+        setLoading(false);
+      }
+    } catch (err: any) {
+      setError(err.message || 'GitHub Sign-In failed.');
+      setLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     setError(null);
@@ -119,7 +183,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
       aria-modal="true"
       aria-labelledby="auth-modal-title"
     >
-      <div className="w-full max-w-md rounded-xl border border-slate-800 bg-[#0F1624] p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-xl border border-slate-800 bg-[#0F1624] p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
           <div>
             <h2 id="auth-modal-title" className="text-lg font-bold text-white">
@@ -129,8 +193,8 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
               {mode === 'reset' && 'Enter Single-Use Reset Token'}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              {mode === 'login' && 'Access your analyzed websites, code exports, and AI workspaces.'}
-              {mode === 'signup' && 'Start analyzing authorized websites and generating clean code.'}
+              {mode === 'login' && 'Connect with GitHub to analyze websites and push reconstructed code.'}
+              {mode === 'signup' && 'Authenticate with GitHub or register developer credentials.'}
               {mode === 'forgot' && 'Generate a single-use cryptographic password reset token.'}
               {mode === 'reset' && 'Consume your reset token and set a new bcrypt-hashed password.'}
             </p>
@@ -145,9 +209,26 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         </div>
 
         {error && (
-          <div className="mt-4 p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-xs text-red-200 flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-            <div className="flex-1">{error}</div>
+          <div className="mt-4 p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-xs text-red-200 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">{error}</div>
+            </div>
+            {githubConfigHelp && (
+              <div className="p-2.5 rounded bg-slate-950/90 border border-slate-800 text-[11px] text-slate-300 space-y-1.5 font-mono">
+                <div className="text-indigo-300 font-sans font-semibold">
+                  Configure GitHub OAuth App (https://github.com/settings/developers):
+                </div>
+                <div>1. Set Authorization Callback URL:</div>
+                <div className="p-1.5 bg-slate-900 rounded border border-slate-800 text-white break-all select-all">
+                  {githubConfigHelp.callbackUrl}
+                </div>
+                <div>2. Set Environment Variables:</div>
+                <div className="text-slate-400">
+                  GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_CALLBACK_URL
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -175,43 +256,39 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         )}
 
         {(mode === 'login' || mode === 'signup') && (
-          <div className="mt-5">
+          <div className="mt-5 space-y-2.5">
+            {/* PRIMARY AUTHENTICATION: CONTINUE WITH GITHUB */}
             <button
               type="button"
-              onClick={handleGoogleSignIn}
+              onClick={handleGithubSignIn}
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-sm font-medium text-white flex items-center justify-center gap-2.5 transition-colors disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-lg bg-white hover:bg-slate-100 text-slate-950 text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-colors disabled:opacity-50"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  fill="#EA4335"
-                  d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 13.5s.6 4.5 1.6 6.5l3.7-2.9z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.8C3.5 20.9 7.4 24 12 24z"
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
                 />
               </svg>
-              <span>Continue with Google</span>
+              <span>Continue with GitHub</span>
             </button>
 
-            <div className="relative my-5 flex items-center justify-center">
+            <p className="text-[11px] text-center text-slate-400">
+              Enables 1-click repository creation and direct code commits from SiteForge AI.
+            </p>
+
+            <div className="relative my-4 flex items-center justify-center">
               <div className="border-t border-slate-800 w-full"></div>
-              <span className="bg-[#0F1624] px-3 text-xs text-slate-500 whitespace-nowrap">or use email credentials</span>
+              <span className="bg-[#0F1624] px-3 text-xs text-slate-500 whitespace-nowrap">
+                or use email credentials
+              </span>
               <div className="border-t border-slate-800 w-full"></div>
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit} className="space-y-4 mt-3">
           {mode === 'signup' && (
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">Full Name</label>
@@ -322,7 +399,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
               {loading
                 ? 'Processing...'
                 : mode === 'login'
-                ? 'Sign In'
+                ? 'Sign In with Email'
                 : mode === 'signup'
                 ? 'Create Account'
                 : mode === 'forgot'
@@ -332,6 +409,19 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        {(mode === 'login' || mode === 'signup') && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="w-full py-2 px-4 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-900 text-xs font-medium text-slate-300 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <span>Or continue with Google Workspace</span>
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
           {mode === 'login' ? (
