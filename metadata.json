@@ -1,0 +1,6 @@
+{
+  "name": "SiteForge AI",
+  "description": "Production-grade AI website analyzer, authorized source-code extractor, full-stack reconstruction engine, and live IDE workspace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

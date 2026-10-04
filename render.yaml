@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: siteforge-ai-platform
+    runtime: node
+    plan: standard
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_MODEL
+        value: gemini-3.8-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SQL_HOST
+        fromDatabase:
+          name: siteforge-postgres
+          property: host
+      - key: SQL_USER
+        fromDatabase:
+          name: siteforge-postgres
+          property: user
+      - key: SQL_PASSWORD
+        fromDatabase:
+          name: siteforge-postgres
+          property: password
+      - key: SQL_DB_NAME
+        fromDatabase:
+          name: siteforge-postgres
+          property: database
+
+databases:
+  - name: siteforge-postgres
+    plan: basic-256mb
+    databaseName: siteforge
+    user: siteforge_app
