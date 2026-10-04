@@ -109,17 +109,36 @@ export const db = drizzle(poolProxy, { schema });
  */
 export async function ensureDatabaseSchema(): Promise<void> {
   const activePool = getPool();
-  let client;
-  try {
-    client = await activePool.connect();
-    await client.query('SELECT 1');
-    console.log('Database connection established.');
-  } catch (err: any) {
-    console.error('Database connection failed.');
-    console.error('Check DATABASE_URL and Render PostgreSQL configuration.');
-    throw new Error(
-      `Database connection failed (${err?.code || err?.message || 'unreachable'}). Check DATABASE_URL and Render PostgreSQL configuration.`
-    );
+  let client: import('pg').PoolClient | undefined;
+  const maxAttempts = process.env.NODE_ENV === 'production' ? 10 : 1;
+  const retryDelayMs = 3000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      client = await activePool.connect();
+      await client.query('SELECT 1');
+      console.log('Database connection established.');
+      break;
+    } catch (err: any) {
+      const code = err?.code || err?.message || 'unreachable';
+
+      if (attempt === maxAttempts) {
+        console.error('Database connection failed.');
+        console.error('Check DATABASE_URL and Render PostgreSQL configuration.');
+        throw new Error(
+          `Database connection failed (${code}). Check DATABASE_URL and Render PostgreSQL configuration.`
+        );
+      }
+
+      console.error(
+        `Database connection attempt ${attempt}/${maxAttempts} failed (${code}). Retrying in ${retryDelayMs / 1000}s...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+  }
+
+  if (!client) {
+    throw new Error('Database connection could not be established.');
   }
 
   try {
