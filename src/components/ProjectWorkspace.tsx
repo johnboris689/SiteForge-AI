@@ -126,7 +126,12 @@ export function ProjectWorkspace({
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'crawl_event') {
-          setLiveEvents((prev) => [...prev, payload]);
+          setLiveEvents((prev) => {
+            if (payload.id && prev.some((e) => e.id === payload.id)) {
+              return prev;
+            }
+            return [...prev, payload];
+          });
         } else if (payload.type === 'job_progress') {
           setActiveJobProgress((prev: any) => ({ ...(prev || {}), ...payload }));
           if (payload.status === 'completed' || payload.status === 'failed' || payload.status === 'cancelled') {
@@ -692,8 +697,8 @@ export function ProjectWorkspace({
                 <p className="text-xs text-slate-400">Analysis in progress...</p>
               ) : (
                 <div className="divide-y divide-slate-800/80">
-                  {technologies.map((t: any) => (
-                    <div key={t.name} className="py-3 flex items-start justify-between gap-4 text-xs">
+                  {technologies.map((t: any, idx: number) => (
+                    <div key={`tech-${t.name}-${idx}`} className="py-3 flex items-start justify-between gap-4 text-xs">
                       <div>
                         <div className="font-semibold text-white">{t.name}</div>
                         <div className="text-slate-400 mt-0.5">{t.evidence}</div>
@@ -714,9 +719,9 @@ export function ProjectWorkspace({
               <div>
                 <div className="text-xs text-slate-400 mb-2">Extracted Color Palette</div>
                 <div className="flex flex-wrap gap-3">
-                  {colors.map((c: any) => (
+                  {colors.map((c: any, idx: number) => (
                     <div
-                      key={c.hex}
+                      key={`color-${c.hex}-${idx}`}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-xs font-mono"
                     >
                       <span className="w-4 h-4 rounded border border-slate-700" style={{ backgroundColor: c.hex }} />
@@ -731,16 +736,16 @@ export function ProjectWorkspace({
                 <div>
                   <div className="text-xs text-slate-400 mb-1.5">Typography Families</div>
                   <div className="text-xs font-mono text-slate-200 space-y-1">
-                    {fonts.map((f: string) => (
-                      <div key={f}>· {f}</div>
+                    {fonts.map((f: string, idx: number) => (
+                      <div key={`font-${f}-${idx}`}>· {f}</div>
                     ))}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-400 mb-1.5">Responsive Breakpoints</div>
                   <div className="text-xs font-mono text-slate-200 space-y-1">
-                    {breakpoints.map((bp: string) => (
-                      <div key={bp}>· {bp}</div>
+                    {breakpoints.map((bp: string, idx: number) => (
+                      <div key={`bp-${bp}-${idx}`}>· {bp}</div>
                     ))}
                   </div>
                 </div>
@@ -780,7 +785,7 @@ export function ProjectWorkspace({
                   <div className="text-slate-500">Waiting for crawler events...</div>
                 ) : (
                   liveEvents.map((ev: any, idx: number) => (
-                    <div key={ev.id || idx} className="flex items-start gap-2.5 leading-relaxed">
+                    <div key={`crawl-ev-${ev.id ?? 'sse'}-${idx}`} className="flex items-start gap-2.5 leading-relaxed">
                       <span className="text-slate-500 shrink-0 tabular-nums">
                         {new Date(ev.timestamp).toLocaleTimeString()}
                       </span>
@@ -1429,15 +1434,15 @@ export function ProjectWorkspace({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {databaseTables.map((table: any) => (
-                <div key={table.tableName} className="p-4 rounded-xl border border-slate-800 bg-slate-950 font-mono text-xs">
+              {databaseTables.map((table: any, tIdx: number) => (
+                <div key={`table-${table.tableName}-${tIdx}`} className="p-4 rounded-xl border border-slate-800 bg-slate-950 font-mono text-xs">
                   <div className="font-bold text-indigo-400 pb-2 mb-2 border-b border-slate-800 flex items-center justify-between">
                     <span>{table.tableName}</span>
                     <span className="text-[10px] text-slate-500">{table.columns?.length || 0} cols</span>
                   </div>
                   <div className="space-y-1.5">
-                    {(table.columns || []).map((col: any) => (
-                      <div key={col.name} className="flex items-center justify-between gap-2">
+                    {(table.columns || []).map((col: any, cIdx: number) => (
+                      <div key={`col-${col.name}-${cIdx}`} className="flex items-center justify-between gap-2">
                         <span className="text-white">├── {col.name}</span>
                         <span className="text-slate-400 text-[11px]">{col.type}</span>
                       </div>

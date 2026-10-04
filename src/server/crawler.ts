@@ -316,20 +316,24 @@ export function extractColorsAndFonts(html: string, cssContents: string[]) {
 }
 
 async function logCrawlEvent(jobId: number, projectId: number, level: 'info' | 'warn' | 'error' | 'success', step: string, message: string) {
-  await db.insert(crawlEvents).values({
-    jobId,
-    projectId,
-    level,
-    step,
-    message,
-  });
+  const [inserted] = await db
+    .insert(crawlEvents)
+    .values({
+      jobId,
+      projectId,
+      level,
+      step,
+      message,
+    })
+    .returning();
   broadcastProjectEvent(projectId, {
     type: 'crawl_event',
+    id: inserted?.id,
     jobId,
     level,
     step,
     message,
-    timestamp: new Date().toISOString(),
+    timestamp: inserted?.timestamp ? new Date(inserted.timestamp).toISOString() : new Date().toISOString(),
   });
 }
 
