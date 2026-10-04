@@ -178,6 +178,22 @@ export function ProjectWorkspace({
     return details.files.find((f: any) => f.id === selectedFileId) || details.files[0] || null;
   }, [details, selectedFileId]);
 
+  // Keep every hook before the conditional loading return. React requires hooks
+  // to run in the same order on every render; otherwise the dashboard can fail
+  // immediately after authentication with React error #310.
+  const repoNameValidationError = useMemo(() => {
+    if (!githubCreateNew) return null;
+    const trimmed = githubRepoName.trim();
+    if (!trimmed) return 'Repository name is required.';
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+      return 'Only alphanumeric characters, hyphens (-), underscores (_), and periods (.) are allowed.';
+    }
+    if (trimmed.startsWith('.') || trimmed.endsWith('.')) {
+      return 'Repository name cannot start or end with a period.';
+    }
+    return null;
+  }, [githubCreateNew, githubRepoName]);
+
   useEffect(() => {
     if (selectedFile) {
       setEditorContent(selectedFile.content);
@@ -535,19 +551,6 @@ export function ProjectWorkspace({
     setGithubProgressStep(null);
     setGithubModalOpen(true);
   };
-
-  const repoNameValidationError = useMemo(() => {
-    if (!githubCreateNew) return null;
-    const trimmed = githubRepoName.trim();
-    if (!trimmed) return 'Repository name is required.';
-    if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
-      return 'Only alphanumeric characters, hyphens (-), underscores (_), and periods (.) are allowed.';
-    }
-    if (trimmed.startsWith('.') || trimmed.endsWith('.')) {
-      return 'Repository name cannot start or end with a period.';
-    }
-    return null;
-  }, [githubCreateNew, githubRepoName]);
 
   const handlePushToGithub = async (e: React.FormEvent) => {
     e.preventDefault();
