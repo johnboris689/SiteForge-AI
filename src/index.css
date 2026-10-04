@@ -22,3 +22,79 @@
     font-family: var(--font-mono);
   }
 }
+
+
+/* Reference-site structural layer. Site Forge AI colors and functionality remain unchanged. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; min-height: 100dvh; overflow-x: hidden; }
+button, input, select, textarea { max-width: 100%; }
+
+.sf-ref-header { width: 100%; padding: 18px 12px 0; background: #07070A; }
+.sf-ref-nav { width: min(1120px, 100%); margin: 0 auto; }
+.sf-ref-brand { min-height: 54px; display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; font-size: clamp(30px, 5vw, 48px); font-weight: 900; letter-spacing: -.045em; line-height: 1; }
+.sf-ref-brand:hover { color: #fff; text-decoration: none; }
+.sf-ref-brand small { display: block; margin-top: 5px; color: #a1a1aa; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.sf-ref-blackbar { margin-top: 9px; padding: 8px 14px; background: #000; color: #fff; font-size: 13px; font-weight: 800; letter-spacing: .01em; }
+.sf-ref-navlinks { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid #3f3f46; border-top: 0; background: #121218; }
+.sf-ref-navlinks a, .sf-ref-navlinks button { min-width: 0; min-height: 44px; padding: 9px 6px; border: 0; border-right: 1px solid #3f3f46; background: transparent; color: #d4d4d8; font: inherit; font-size: 12px; font-weight: 800; text-align: center; text-decoration: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.sf-ref-navlinks a:hover, .sf-ref-navlinks button:hover { background: #1f1f27; color: #fff; }
+.sf-ref-navlinks > :last-child { border-right: 0; }
+.sf-ref-navlinks .sf-ref-primary { background: #e11d48; color: #fff; }
+.sf-ref-navlinks .sf-ref-primary:hover { background: #f43f5e; }
+
+.sf-ref-main { width: min(1120px, calc(100% - 24px)); margin: 0 auto; background: #090D16; border: 1px solid #27272a; border-top: 0; padding-bottom: 26px; }
+.sf-ref-wrap { width: min(100% - 52px, 1040px); margin-inline: auto; }
+.sf-ref-narrow { max-width: 760px; }
+.sf-ref-main section { scroll-margin-top: 16px; }
+.sf-ref-footer { width: 100%; padding: 24px 12px 44px; background: #07070A; border-top: 1px solid #27272a; }
+
+@media (max-width: 900px) {
+  .sf-ref-navlinks { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .sf-ref-navlinks a:nth-child(4), .sf-ref-navlinks a:nth-child(5) { border-top: 1px solid #3f3f46; }
+  .sf-ref-navlinks > *:nth-child(4) { border-right: 1px solid #3f3f46; }
+}
+@media (max-width: 640px) {
+  .sf-ref-header { padding: 10px 8px 0; }
+  .sf-ref-brand { font-size: 31px; gap: 9px; }
+  .sf-ref-brand small { font-size: 9px; }
+  .sf-ref-blackbar { font-size: 11px; padding: 7px 10px; }
+  .sf-ref-navlinks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sf-ref-navlinks a, .sf-ref-navlinks button { min-height: 42px; font-size: 11px; }
+  .sf-ref-main { width: calc(100% - 12px); }
+  .sf-ref-wrap { width: calc(100% - 28px); }
+}
+@media (max-width: 390px) {
+  .sf-ref-brand { font-size: 27px; }
+  .sf-ref-navlinks { grid-template-columns: 1fr 1fr; }
+  .sf-ref-navlinks a, .sf-ref-navlinks button { font-size: 10px; padding-inline: 4px; }
+}
+
+/* Prevent common mobile viewport clipping/nested-scroll failures. */
+.min-h-screen { min-height: 100dvh !important; }
+
+/* Full-page analyzer shell: modeled on the reference site's wizard/page structure while keeping Site Forge AI colors. */
+.sf-analyzer-shell { min-height: 100dvh; color: #f4f4f5; }
+.sf-analyzer-header { width: min(1120px, calc(100% - 24px)); margin: 0 auto; padding: 16px 8px 0; }
+.sf-analyzer-brand { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#fff; font-size:clamp(28px,5vw,46px); font-weight:900; letter-spacing:-.045em; line-height:1; }
+.sf-analyzer-brand small { display:block; margin-top:5px; color:#a1a1aa; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.sf-analyzer-close { width:38px; height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; border:1px solid #3f3f46; border-radius:10px; background:#121218; color:#a1a1aa; cursor:pointer; }
+.sf-analyzer-close:hover { color:#fff; border-color:#71717a; }
+.sf-analyzer-blackbar { margin-top:9px; padding:8px 14px; background:#000; color:#fff; font-size:13px; font-weight:800; }
+.sf-analyzer-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); border:1px solid #3f3f46; border-top:0; background:#121218; }
+.sf-analyzer-nav a,.sf-analyzer-nav button { min-height:42px; padding:8px 6px; display:flex; align-items:center; justify-content:center; border:0; border-right:1px solid #3f3f46; background:transparent; color:#d4d4d8; text-decoration:none; font-size:11px; font-weight:800; cursor:pointer; }
+.sf-analyzer-nav a:hover,.sf-analyzer-nav button:hover { background:#1f1f27; color:#fff; }
+.sf-analyzer-nav > :last-child { border-right:0; }
+.sf-analyzer-main { width:min(1120px,calc(100% - 24px)); margin:0 auto; background:#090D16; border:1px solid #27272a; border-top:0; padding:0 0 32px; }
+.sf-analyzer-wrap { width:min(calc(100% - 52px),1040px); margin:0 auto; padding-top:28px; }
+.sf-analyzer-titlebar { background:linear-gradient(90deg,#7f1236,#e11d48); color:#fff; font-size:13px; font-weight:800; padding:7px 12px; letter-spacing:.02em; }
+.sf-analyzer-body { padding:24px; border:1px solid #27272a; border-top:0; background:#0D0D12; }
+.sf-analyzer-intro { padding-bottom:20px; margin-bottom:20px; border-bottom:1px solid #27272a; }
+.sf-analyzer-kicker { display:flex; align-items:center; gap:7px; color:#fb7185; font:700 11px/1.2 var(--font-mono); letter-spacing:.1em; }
+.sf-analyzer-intro h2 { margin-top:8px; color:#fff; font-size:clamp(24px,3.5vw,34px); line-height:1.15; font-weight:800; letter-spacing:-.03em; }
+.sf-analyzer-intro p { max-width:720px; margin-top:10px; color:#a1a1aa; font-size:13px; line-height:1.65; }
+@media(max-width:760px){
+  .sf-analyzer-header{padding-top:9px}.sf-analyzer-brand{font-size:30px}.sf-analyzer-brand small{font-size:8px}.sf-analyzer-close{width:34px;height:34px}
+  .sf-analyzer-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.sf-analyzer-nav a,.sf-analyzer-nav button{font-size:10px}.sf-analyzer-main{width:calc(100% - 12px)}.sf-analyzer-wrap{width:calc(100% - 28px);padding-top:18px}.sf-analyzer-body{padding:16px}
+}
+@media(max-width:390px){.sf-analyzer-brand{font-size:25px}.sf-analyzer-nav{grid-template-columns:1fr 1fr}}

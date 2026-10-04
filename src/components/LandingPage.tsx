@@ -69,62 +69,34 @@ export function LandingPage({
 
   return (
     <div className="min-h-screen bg-[#07070A] text-zinc-100 flex flex-col">
-      {/* Top Bar Contract: Zone 1 (Wordmark) — Zone 2 (5 Nav Links) — Zone 3 (2 Primary Actions) */}
-      <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-[#07070A]/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <a href="#top" className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-white font-display whitespace-nowrap">
-            <ForgeMark className="w-7 h-7" />
-            <span>Site Forge AI</span>
+      {/* Reference-inspired page shell: preserve Site Forge AI branding/colors, but use the reference site's clear page-to-page structure. */}
+      <header className="sf-ref-header">
+        <div className="sf-ref-nav">
+          <a href="#top" className="sf-ref-brand">
+            <ForgeMark className="w-8 h-8" />
+            <span>Site Forge AI <small>AI website analyzer</small></span>
           </a>
-
-          <nav className="hidden md:flex items-center gap-7 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            <a href="#workflow" className="hover:text-white transition-colors whitespace-nowrap">
-              Workflow
-            </a>
-            <a href="#platforms" className="hover:text-white transition-colors whitespace-nowrap">
-              Platforms
-            </a>
-            <a href="#recreation" className="hover:text-white transition-colors whitespace-nowrap">
-              AI Rebuild
-            </a>
-            <a href="#playbooks" className="hover:text-white transition-colors whitespace-nowrap">
-              Playbooks
-            </a>
-            <a href="#pricing" className="hover:text-white transition-colors whitespace-nowrap">
-              Pricing
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-3">
+          <div className="sf-ref-blackbar">Analyze websites. Rebuild with AI. Own the code.</div>
+          <nav className="sf-ref-navlinks" aria-label="Primary navigation">
+            <a href="#workflow">Workflow</a>
+            <a href="#platforms">Platforms</a>
+            <a href="#recreation">AI Rebuild</a>
+            <a href="#playbooks">Playbooks</a>
+            <a href="#pricing">Pricing</a>
             {isAuthenticated ? (
-              <button
-                onClick={onNavigateDashboard}
-                className="px-4 py-2 rounded-xl border border-zinc-700 hover:border-zinc-500 text-xs font-bold text-zinc-200 hover:text-white transition-colors whitespace-nowrap"
-              >
-                Project Workspace
-              </button>
+              <button type="button" onClick={onNavigateDashboard}>Workspace</button>
             ) : (
-              <button
-                onClick={() => onOpenAuth('login')}
-                className="px-4 py-2 rounded-xl border border-zinc-800 hover:border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white transition-colors whitespace-nowrap"
-              >
-                Sign In
-              </button>
+              <button type="button" onClick={() => onOpenAuth('login')}>Sign In</button>
             )}
-            <button
-              onClick={() => onOpenAnalyzer(heroUrl)}
-              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg shadow-rose-950/50 transition-colors whitespace-nowrap"
-            >
-              Analyze Website
-            </button>
-          </div>
+            <button type="button" className="sf-ref-primary" onClick={() => onOpenAnalyzer(heroUrl)}>Analyze Website</button>
+          </nav>
         </div>
       </header>
 
-      <main id="top" className="flex-1">
+      <main id="top" className="sf-ref-main flex-1">
         {/* HERO SECTION */}
-        <section className="relative overflow-hidden border-b border-zinc-800/80 pt-16 pb-24 bg-gradient-to-b from-rose-950/15 via-[#07070A] to-[#07070A]">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <section className="relative overflow-hidden border-b border-zinc-800/80 py-12 sm:py-16 bg-gradient-to-b from-rose-950/15 via-[#07070A] to-[#07070A]">
+          <div className="sf-ref-wrap grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
             <div className="lg:col-span-7">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md border border-rose-500/30 bg-rose-500/10 text-xs font-mono text-rose-400 mb-5">
                 <Sparkles className="w-3.5 h-3.5" />
@@ -212,7 +184,7 @@ export function LandingPage({
 
         {/* END-TO-END WORKFLOW PIPELINE */}
         <section id="workflow" className="py-20 border-b border-zinc-800/80">
-          <div className="max-w-7xl mx-auto px-6">
+          <div className="sf-ref-wrap">
             <div className="max-w-2xl mb-12">
               <div className="text-xs font-mono text-rose-500 mb-2">SITE FORGE AI WORKFLOW</div>
               <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
@@ -281,7 +253,7 @@ export function LandingPage({
 
         {/* PLATFORM RECONSTRUCTION PRESETS (TRANSFORMED FROM UPLOADED ARCHIVE) */}
         <section id="platforms" className="py-20 border-b border-zinc-800/80 bg-[#0B0B10]">
-          <div className="max-w-7xl mx-auto px-6">
+          <div className="sf-ref-wrap">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
               <div>
                 <div className="text-xs font-mono text-rose-500 mb-2">PLATFORM RECONSTRUCTION PROFILES</div>
@@ -335,7 +307,7 @@ export function LandingPage({
 
         {/* AI RECONSTRUCTION STUDIO & GITHUB PUBLISHING */}
         <section id="recreation" className="py-20 border-b border-zinc-800/80">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="sf-ref-wrap grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
             <div className="lg:col-span-6 space-y-5">
               <div className="text-xs font-mono text-rose-500">AI RECONSTRUCTION & GITHUB STUDIO</div>
               <h2 className="text-3xl font-bold text-white tracking-tight">
@@ -411,7 +383,7 @@ export function LandingPage({
 
         {/* ENGINEERING PLAYBOOKS & GUIDES */}
         <section id="playbooks" className="py-20 border-b border-zinc-800/80 bg-[#0B0B10]">
-          <div className="max-w-7xl mx-auto px-6">
+          <div className="sf-ref-wrap">
             <div className="max-w-2xl mb-10">
               <div className="text-xs font-mono text-rose-500 mb-2">RECONSTRUCTION PLAYBOOKS</div>
               <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
@@ -463,7 +435,7 @@ export function LandingPage({
 
         {/* PRICING ARCHITECTURE */}
         <section id="pricing" className="py-20 border-b border-zinc-800/80">
-          <div className="max-w-7xl mx-auto px-6">
+          <div className="sf-ref-wrap">
             <div className="max-w-2xl mb-12">
               <div className="text-xs font-mono text-rose-500 mb-2">WORKSPACE PLANS</div>
               <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
@@ -561,7 +533,7 @@ export function LandingPage({
 
         {/* FAQ & SECURITY SECTION */}
         <section id="faq" className="py-20">
-          <div className="max-w-4xl mx-auto px-6">
+          <div className="sf-ref-wrap sf-ref-narrow">
             <h2 className="text-2xl font-bold text-white mb-8">Frequently Asked Questions</h2>
             <div className="space-y-3">
               {faqs.map((item, idx) => {
@@ -594,8 +566,8 @@ export function LandingPage({
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t border-zinc-800/80 py-8 px-6 text-xs text-zinc-500 bg-[#050508]">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="sf-ref-footer text-xs text-zinc-500">
+        <div className="sf-ref-wrap flex flex-col sm:flex-row items-center justify-between gap-5">
           <div className="flex items-center gap-2.5">
             <ForgeMark className="w-5 h-5" />
             <span>© {new Date().getFullYear()} Site Forge AI. Website Analyzer & AI Reconstruction Studio.</span>

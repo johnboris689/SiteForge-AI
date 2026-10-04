@@ -130,33 +130,35 @@ export function UrlAnalyzerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 min-h-[100dvh] overflow-y-auto bg-[#07070A]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="analyzer-config-title"
     >
-      <div className="w-full max-w-4xl rounded-2xl border border-zinc-800/90 bg-[#0D0D12] p-6 sm:p-8 shadow-2xl my-8">
-        <div className="flex items-center justify-between pb-5 border-b border-zinc-800/80">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-600/15 border border-rose-500/30 flex items-center justify-center">
-              <Sliders className="w-4 h-4 text-rose-500" />
-            </div>
-            <div>
-              <h2 id="analyzer-config-title" className="text-lg font-bold text-white tracking-tight">
-                Site Forge AI — Website Analyzer & Reconstruction Studio
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Configure URL target, platform profile, crawl depth, asset filters, and AI reconstruction pipeline.
-              </p>
-            </div>
+      <div className="sf-analyzer-shell">
+        <header className="sf-analyzer-header">
+          <div className="sf-analyzer-brand">
+            <span>Site Forge AI <small>website analyzer & AI reconstruction</small></span>
+            <button type="button" onClick={onClose} aria-label="Close analyzer" title="Close analyzer" className="sf-analyzer-close"><X className="w-4 h-4" /></button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800/60 transition-colors"
-            aria-label="Close configurator"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="sf-analyzer-blackbar">Site Forge AI — Analyze, reconstruct, and export authorized websites</div>
+          <nav className="sf-analyzer-nav" aria-label="Analyzer navigation">
+            <a href="#analyzer-options">Analysis options</a>
+            <a href="#analyzer-workflow">Workflows</a>
+            <a href="#analyzer-assets">Assets</a>
+            <a href="#analyzer-security">Security</a>
+            <button type="button" onClick={onClose}>Back to Site Forge</button>
+          </nav>
+        </header>
+
+        <main className="sf-analyzer-main">
+          <div className="sf-analyzer-wrap">
+            <div className="sf-analyzer-titlebar">Site Forge AI — Analyzer wizard</div>
+            <div className="sf-analyzer-body">
+        <div className="sf-analyzer-intro" id="analyzer-options">
+          <div className="sf-analyzer-kicker"><Sliders className="w-3.5 h-3.5 text-rose-500" /> SITE FORGE AI ANALYZER</div>
+          <h2 id="analyzer-config-title">Website Analyzer & Reconstruction Studio</h2>
+          <p>Configure the URL target, platform profile, crawl depth, asset filters, and AI reconstruction pipeline without changing any of Site Forge AI's existing capabilities.</p>
         </div>
 
         {error && (
@@ -235,7 +237,7 @@ export function UrlAnalyzerModal({
           </div>
 
           {/* 4 Selectable Analysis & Reconstruction Modes */}
-          <div>
+          <div id="analyzer-workflow">
             <label className="block text-xs font-semibold text-zinc-300 mb-2">Choose Operation Workflow</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {modes.map((m) => {
@@ -386,7 +388,7 @@ export function UrlAnalyzerModal({
           </div>
 
           {/* Asset Options & Crawl Flags */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-zinc-800/80">
+          <div id="analyzer-assets" className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-zinc-800/80">
             <div className="p-4 rounded-xl border border-zinc-800/80 bg-[#121218]">
               <div className="text-xs font-bold text-white mb-2.5">Public Asset Discovery Filters</div>
               <div className="grid grid-cols-2 gap-2 text-xs text-zinc-300">
@@ -420,7 +422,7 @@ export function UrlAnalyzerModal({
               </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-zinc-800/80 bg-[#121218]">
+            <div id="analyzer-security" className="p-4 rounded-xl border border-zinc-800/80 bg-[#121218]">
               <div className="text-xs font-bold text-white mb-2.5">Analyzer & Security Boundaries</div>
               <div className="grid grid-cols-1 gap-2 text-xs text-zinc-300">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -500,6 +502,9 @@ export function UrlAnalyzerModal({
             </button>
           </div>
         </form>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
