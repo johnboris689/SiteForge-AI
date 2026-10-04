@@ -72,6 +72,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  console.log('Starting server...');
   await ensureDatabaseSchema();
 
   const app = express();
@@ -1543,7 +1544,7 @@ async function startServer() {
 
   const HOST = '0.0.0.0';
   app.listen(PORT, HOST, () => {
-    console.log(`Site Forge AI server listening on ${HOST}:${PORT}`);
+    console.log(`Server listening on ${HOST}:${PORT}`);
   });
 }
 

@@ -7,22 +7,18 @@
     --font-mono: 'JetBrains Mono', monospace;
   }
 
-  body {
+  html {
     font-family: var(--font-sans);
-    background-color: #090D16;
-    color: #F1F5F9;
+    background-color: #07070A;
+    color: #F4F4F5;
+    scroll-behavior: smooth;
   }
 
-  h1, h2, .font-display {
+  h1, h2, h3, .font-display {
     font-family: var(--font-display);
   }
 
   code, pre, .font-mono {
     font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
   }
-}
-
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
 }

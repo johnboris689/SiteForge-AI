@@ -12,7 +12,7 @@ import {
   consumeOAuthState,
   validateRepositoryName,
 } from '../src/server/github.ts';
-import { resolvePoolConfig } from '../src/db/index.ts';
+import { resolvePoolConfig, ensureDatabaseSchema, getPool } from '../src/db/index.ts';
 
 async function runTests() {
   console.log('Running SiteForge AI test suite...');
@@ -122,6 +122,26 @@ async function runTests() {
     else delete process.env.RENDER;
     if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
     else delete process.env.NODE_ENV;
+  }
+
+  // 8. Live PostgreSQL Connection & Schema Verification via DATABASE_URL
+  if (process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME) {
+    const prevDbUrl = process.env.DATABASE_URL;
+    try {
+      const encodedUser = encodeURIComponent(process.env.SQL_USER);
+      const encodedPass = encodeURIComponent(process.env.SQL_PASSWORD || '');
+      const port = process.env.SQL_PORT || '5432';
+      process.env.DATABASE_URL = `postgresql://${encodedUser}:${encodedPass}@${process.env.SQL_HOST}:${port}/${process.env.SQL_DB_NAME}`;
+      const liveCfg = resolvePoolConfig();
+      assert.ok(liveCfg.connectionString?.startsWith('postgresql://'), 'Should use DATABASE_URL connectionString');
+      await ensureDatabaseSchema();
+      await getPool().end();
+      global._postgresPool = undefined;
+      console.log('✓ Live PostgreSQL connection & schema verification via DATABASE_URL succeeded');
+    } finally {
+      if (prevDbUrl !== undefined) process.env.DATABASE_URL = prevDbUrl;
+      else delete process.env.DATABASE_URL;
+    }
   }
 
   console.log('All SiteForge AI unit tests passed!');

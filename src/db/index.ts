@@ -24,13 +24,17 @@ function isLocalhostHost(hostOrUrl: string): boolean {
 }
 
 export function resolvePoolConfig(): PoolConfig {
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = (
+    process.env.DATABASE_URL ||
+    process.env.INTERNAL_DATABASE_URL ||
+    process.env.POSTGRES_URL
+  )?.trim();
   const sqlHost = process.env.SQL_HOST?.trim();
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
-  const isRender = process.env.RENDER === 'true';
+  const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_SERVICE_ID);
+  const isProduction = isRender || (process.env.NODE_ENV === 'production' && !sqlHost);
 
   if (connectionString) {
-    if (isRender && isLocalhostHost(connectionString)) {
+    if (isProduction && isLocalhostHost(connectionString)) {
       throw new Error(
         'Invalid DATABASE_URL for Render production: DATABASE_URL points to localhost. Configure the Render PostgreSQL connection string before starting Site Forge AI.'
       );
@@ -54,10 +58,10 @@ export function resolvePoolConfig(): PoolConfig {
     };
   }
 
-  // Compatibility with managed Cloud SQL environments (where SQL_HOST, SQL_USER, and SQL_DB_NAME are explicitly injected)
+  // Compatibility with managed Cloud SQL / non-localhost database host variables
   const sqlUser = process.env.SQL_USER?.trim();
   const sqlDbName = process.env.SQL_DB_NAME?.trim();
-  if (sqlHost && sqlUser && sqlDbName && !isRender) {
+  if (sqlHost && sqlUser && sqlDbName && (!isRender || !isLocalhostHost(sqlHost))) {
     return {
       host: sqlHost,
       port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
@@ -70,14 +74,8 @@ export function resolvePoolConfig(): PoolConfig {
   }
 
   // Never silently fall back to localhost:5432 when DATABASE_URL is missing
-  if (isProduction) {
-    throw new Error(
-      'DATABASE_URL is not configured. Configure the Render PostgreSQL connection before starting Site Forge AI.'
-    );
-  }
-
   throw new Error(
-    'DATABASE_URL is not configured. Set DATABASE_URL=postgresql://username:password@localhost:5432/siteforge in your environment.'
+    'DATABASE_URL is not configured. Configure the Render PostgreSQL connection before starting Site Forge AI.'
   );
 }
 

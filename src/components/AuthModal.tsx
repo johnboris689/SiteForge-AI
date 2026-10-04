@@ -178,22 +178,22 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"
     >
-      <div className="w-full max-w-md rounded-xl border border-slate-800 bg-[#0F1624] p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#0D0D12] p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
           <div>
             <h2 id="auth-modal-title" className="text-lg font-bold text-white">
-              {mode === 'login' && 'Sign In to SiteForge AI'}
-              {mode === 'signup' && 'Create Developer Account'}
+              {mode === 'login' && 'Sign In to Site Forge AI'}
+              {mode === 'signup' && 'Create Site Forge AI Account'}
               {mode === 'forgot' && 'Reset Account Password'}
               {mode === 'reset' && 'Enter Single-Use Reset Token'}
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {mode === 'login' && 'Connect with GitHub to analyze websites and push reconstructed code.'}
+            <p className="text-xs text-zinc-400 mt-0.5">
+              {mode === 'login' && 'Connect with GitHub to analyze websites, rebuild code, and push repositories.'}
               {mode === 'signup' && 'Authenticate with GitHub or register developer credentials.'}
               {mode === 'forgot' && 'Generate a single-use cryptographic password reset token.'}
               {mode === 'reset' && 'Consume your reset token and set a new bcrypt-hashed password.'}
@@ -201,7 +201,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/60 transition-colors"
+            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800/60 transition-colors"
             aria-label="Close modal"
           >
             <X className="w-4 h-4" />
@@ -209,22 +209,22 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         </div>
 
         {error && (
-          <div className="mt-4 p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-xs text-red-200 space-y-2">
+          <div className="mt-4 p-3 rounded-xl border border-rose-500/40 bg-rose-950/30 text-xs text-rose-200 space-y-2">
             <div className="flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="flex-1">{error}</div>
             </div>
             {githubConfigHelp && (
-              <div className="p-2.5 rounded bg-slate-950/90 border border-slate-800 text-[11px] text-slate-300 space-y-1.5 font-mono">
-                <div className="text-indigo-300 font-sans font-semibold">
+              <div className="p-2.5 rounded-lg bg-[#08080C] border border-zinc-800 text-[11px] text-zinc-300 space-y-1.5 font-mono">
+                <div className="text-rose-400 font-sans font-semibold">
                   Configure GitHub OAuth App (https://github.com/settings/developers):
                 </div>
                 <div>1. Set Authorization Callback URL:</div>
-                <div className="p-1.5 bg-slate-900 rounded border border-slate-800 text-white break-all select-all">
+                <div className="p-1.5 bg-zinc-900 rounded border border-zinc-800 text-white break-all select-all">
                   {githubConfigHelp.callbackUrl}
                 </div>
                 <div>2. Set Environment Variables:</div>
-                <div className="text-slate-400">
+                <div className="text-zinc-400">
                   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_CALLBACK_URL
                 </div>
               </div>
@@ -233,19 +233,19 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         )}
 
         {infoMessage && (
-          <div className="mt-4 p-3 rounded-lg border border-indigo-500/40 bg-indigo-500/10 text-xs text-indigo-200 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+          <div className="mt-4 p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p>{infoMessage}</p>
               {generatedSandboxToken && mode === 'forgot' && (
-                <div className="mt-2 pt-2 border-t border-indigo-500/30">
-                  <div className="font-mono text-[11px] text-white bg-slate-950 px-2.5 py-1.5 rounded border border-slate-800 break-all">
+                <div className="mt-2 pt-2 border-t border-rose-500/30">
+                  <div className="font-mono text-[11px] text-white bg-zinc-950 px-2.5 py-1.5 rounded border border-zinc-800 break-all">
                     {generatedSandboxToken}
                   </div>
                   <button
                     type="button"
                     onClick={() => setMode('reset')}
-                    className="mt-2 px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors"
+                    className="mt-2 px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-colors"
                   >
                     Proceed to Reset Password Form →
                   </button>
@@ -262,7 +262,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
               type="button"
               onClick={handleGithubSignIn}
               disabled={loading}
-              className="w-full py-3 px-4 rounded-lg bg-white hover:bg-slate-100 text-slate-950 text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-colors disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-colors disabled:opacity-50"
             >
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                 <path
@@ -274,16 +274,16 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
               <span>Continue with GitHub</span>
             </button>
 
-            <p className="text-[11px] text-center text-slate-400">
-              Enables 1-click repository creation and direct code commits from SiteForge AI.
+            <p className="text-[11px] text-center text-zinc-400">
+              Enables 1-click GitHub repository creation and direct code commits from Site Forge AI.
             </p>
 
             <div className="relative my-4 flex items-center justify-center">
-              <div className="border-t border-slate-800 w-full"></div>
-              <span className="bg-[#0F1624] px-3 text-xs text-slate-500 whitespace-nowrap">
+              <div className="border-t border-zinc-800 w-full"></div>
+              <span className="bg-[#0D0D12] px-3 text-xs text-zinc-500 whitespace-nowrap">
                 or use email credentials
               </span>
-              <div className="border-t border-slate-800 w-full"></div>
+              <div className="border-t border-zinc-800 w-full"></div>
             </div>
           </div>
         )}
@@ -291,16 +291,16 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         <form onSubmit={handleSubmit} className="space-y-4 mt-3">
           {mode === 'signup' && (
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Full Name</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Full Name</label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                <User className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ada Lovelace"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -308,16 +308,16 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
 
           {(mode === 'login' || mode === 'signup' || mode === 'forgot') && (
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Email Address</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Email Address</label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="developer@company.com"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -326,7 +326,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
           {(mode === 'login' || mode === 'signup') && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-slate-300">Password</label>
+                <label className="block text-xs font-medium text-zinc-300">Password</label>
                 {mode === 'login' && (
                   <button
                     type="button"
@@ -335,14 +335,14 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                       setInfoMessage(null);
                       setMode('forgot');
                     }}
-                    className="text-xs text-indigo-400 hover:text-indigo-300"
+                    className="text-xs text-rose-400 hover:text-rose-300"
                   >
                     Forgot password?
                   </button>
                 )}
               </div>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                 <input
                   type="password"
                   required
@@ -350,7 +350,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -359,23 +359,23 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
           {mode === 'reset' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Single-Use Reset Token</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">Single-Use Reset Token</label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <KeyRound className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                   <input
                     type="text"
                     required
                     value={resetToken}
                     onChange={(e) => setResetToken(e.target.value)}
                     placeholder="sf_rst_..."
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm font-mono text-white focus:border-indigo-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm font-mono text-white focus:border-rose-500 focus:outline-none"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">New Password</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">New Password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                   <input
                     type="password"
                     required
@@ -383,7 +383,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Minimum 8 characters"
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -393,7 +393,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-bold text-white flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
           >
             <span>
               {loading
@@ -416,17 +416,17 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
               type="button"
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="w-full py-2 px-4 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-900 text-xs font-medium text-slate-300 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              className="w-full py-2 px-4 rounded-xl border border-zinc-800 bg-[#08080C] hover:bg-zinc-900 text-xs font-medium text-zinc-300 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
             >
               <span>Or continue with Google Workspace</span>
             </button>
           </div>
         )}
 
-        <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+        <div className="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
           {mode === 'login' ? (
             <>
-              <span>New to SiteForge AI?</span>
+              <span>New to Site Forge AI?</span>
               <button
                 type="button"
                 onClick={() => {
@@ -434,7 +434,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                   setInfoMessage(null);
                   setMode('signup');
                 }}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold"
+                className="text-rose-400 hover:text-rose-300 font-semibold"
               >
                 Create an account
               </button>
@@ -449,7 +449,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                   setInfoMessage(null);
                   setMode('login');
                 }}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold"
+                className="text-rose-400 hover:text-rose-300 font-semibold"
               >
                 Back to Sign In
               </button>

@@ -7,19 +7,30 @@ import {
   Download,
   ShieldCheck,
   Layers,
-  Terminal,
-  Database,
   ChevronDown,
-  FolderGit2,
+  GitBranch,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import heroDiagramImg from '../assets/images/hero_architecture_diagram_1791108653499.jpg';
+import { PLATFORM_PRESETS, RECONSTRUCTION_PLAYBOOKS } from '../shared/platform-presets.ts';
 
 interface LandingPageProps {
   isAuthenticated: boolean;
-  onOpenAnalyzer: (initialUrl: string) => void;
+  onOpenAnalyzer: (initialUrl: string, presetId?: string) => void;
   onOpenAuth: (mode: 'login' | 'signup') => void;
   onNavigateDashboard: () => void;
+}
+
+export function ForgeMark({ className = 'w-7 h-7' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 36 36" fill="none" aria-hidden="true">
+      <rect width="36" height="36" rx="10" fill="#121218" stroke="#E11D48" strokeWidth="1.5" />
+      <path d="M9 11.5H27L23.5 17H12.5L9 11.5Z" fill="#E11D48" />
+      <path d="M12.5 20.5H23.5L27 25.5H9L12.5 20.5Z" fill="#F43F5E" fillOpacity="0.85" />
+      <circle cx="18" cy="18.75" r="2.2" fill="#FAFAFA" />
+    </svg>
+  );
 }
 
 export function LandingPage({
@@ -39,46 +50,47 @@ export function LandingPage({
 
   const faqs = [
     {
-      q: 'How does SiteForge AI differ from traditional static website copiers like HTTrack?',
-      a: 'Traditional copiers dump raw, minified HTML and broken relative scripts into a folder. SiteForge AI crawls authorized public resources, extracts design tokens (color palettes, typography, breakpoints), detects the underlying framework, and uses an AI reconstruction engine to generate clean, maintainable React + TypeScript + Tailwind CSS components, REST API routes, and PostgreSQL migrations.',
+      q: 'How does Site Forge AI transform a public URL into a modern application?',
+      a: 'Site Forge AI crawls authorized public routes, extracts design tokens (hex color palettes, typography families, responsive breakpoints), detects the underlying technology stack, and uses an AI reconstruction engine to synthesize modular React + TypeScript + Tailwind CSS components, REST API routes, and PostgreSQL migrations.',
     },
     {
-      q: 'What security boundaries and SSRF protections are enforced during crawling?',
+      q: 'Can I push my reconstructed project directly to GitHub?',
+      a: 'Yes. Authenticate with Continue with GitHub, create a new public or private repository directly inside your Project Workspace, and commit the entire reconstructed source tree via the GitHub Git Data API with one click.',
+    },
+    {
+      q: 'What security boundaries and SSRF protections are enforced during analysis?',
       a: 'Every URL is validated and resolved via DNS before any HTTP request is dispatched. Requests to localhost, loopback interfaces, private IPv4/IPv6 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), and cloud metadata endpoints (169.254.169.254) are strictly blocked.',
     },
     {
-      q: 'How does the platform handle login and authentication pages on analyzed websites?',
-      a: 'When the crawler encounters a login, signup, or password reset page, it flags the route as "Authentication UI detected" and analyzes only the publicly accessible layout structure. It never harvests credentials, session cookies, or private backend data.',
-    },
-    {
-      q: 'Can I edit the generated source code, compare versions, and export a standalone ZIP?',
-      a: 'Yes. Every project includes a full browser IDE with syntax-highlighted source files, single-file AI refactoring, version history with rollback, a sandboxed multi-device live preview, and a validated ZIP archive generator.',
+      q: 'How does the platform handle login and authentication screens on analyzed websites?',
+      a: 'When the analyzer encounters a login, signup, or password reset route, it flags the page as "Authentication UI detected" and inspects only the publicly accessible layout structure. It never harvests credentials, session cookies, or private user data.',
     },
   ];
 
   return (
-    <div className="min-h-screen bg-[#090D16] text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#07070A] text-zinc-100 flex flex-col">
       {/* Top Bar Contract: Zone 1 (Wordmark) — Zone 2 (5 Nav Links) — Zone 3 (2 Primary Actions) */}
-      <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-[#090D16]/90 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <a href="#top" className="text-xl font-bold tracking-tight text-white font-display whitespace-nowrap">
-            SiteForge AI
+      <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-[#07070A]/90 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <a href="#top" className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-white font-display whitespace-nowrap">
+            <ForgeMark className="w-7 h-7" />
+            <span>Site Forge AI</span>
           </a>
 
-          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-300">
-            <a href="#how-it-works" className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap">
-              How It Works
+          <nav className="hidden md:flex items-center gap-7 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            <a href="#workflow" className="hover:text-white transition-colors whitespace-nowrap">
+              Workflow
             </a>
-            <a href="#analyzer" className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap">
-              Analyzer
+            <a href="#platforms" className="hover:text-white transition-colors whitespace-nowrap">
+              Platforms
             </a>
-            <a href="#recreation" className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap">
+            <a href="#recreation" className="hover:text-white transition-colors whitespace-nowrap">
               AI Rebuild
             </a>
-            <a href="#security" className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap">
-              Security
+            <a href="#playbooks" className="hover:text-white transition-colors whitespace-nowrap">
+              Playbooks
             </a>
-            <a href="#pricing" className="hover:text-white hover:underline underline-offset-4 transition-colors whitespace-nowrap">
+            <a href="#pricing" className="hover:text-white transition-colors whitespace-nowrap">
               Pricing
             </a>
           </nav>
@@ -87,23 +99,23 @@ export function LandingPage({
             {isAuthenticated ? (
               <button
                 onClick={onNavigateDashboard}
-                className="px-4 py-2 rounded-lg border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 hover:text-white transition-colors whitespace-nowrap"
+                className="px-4 py-2 rounded-xl border border-zinc-700 hover:border-zinc-500 text-xs font-bold text-zinc-200 hover:text-white transition-colors whitespace-nowrap"
               >
-                View Projects
+                Project Workspace
               </button>
             ) : (
               <button
                 onClick={() => onOpenAuth('login')}
-                className="px-4 py-2 rounded-lg border border-slate-800 hover:border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors whitespace-nowrap"
+                className="px-4 py-2 rounded-xl border border-zinc-800 hover:border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white transition-colors whitespace-nowrap"
               >
-                View Projects
+                Sign In
               </button>
             )}
             <button
               onClick={() => onOpenAnalyzer(heroUrl)}
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors whitespace-nowrap"
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg shadow-rose-950/50 transition-colors whitespace-nowrap"
             >
-              Analyze a Website
+              Analyze Website
             </button>
           </div>
         </div>
@@ -111,136 +123,155 @@ export function LandingPage({
 
       <main id="top" className="flex-1">
         {/* HERO SECTION */}
-        <section className="relative overflow-hidden border-b border-slate-800/80 pt-16 pb-24">
+        <section className="relative overflow-hidden border-b border-zinc-800/80 pt-16 pb-24 bg-gradient-to-b from-rose-950/15 via-[#07070A] to-[#07070A]">
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-7">
-              <div className="text-xs font-mono text-indigo-400 mb-4">
-                Website Analyzer · Source Exporter · AI Full-Stack Reconstruction
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md border border-rose-500/30 bg-rose-500/10 text-xs font-mono text-rose-400 mb-5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>SITE FORGE AI · WEBSITE ANALYZER & AI RECONSTRUCTION PLATFORM</span>
               </div>
               <h1
-                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.08] mb-6"
+                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.06] mb-6"
                 style={{ textWrap: 'balance' }}
               >
                 Analyze. Rebuild. Own Your Code.
               </h1>
-              <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl mb-8">
-                Analyze authorized websites, extract their public structure and assets, generate downloadable source code, and use AI to rebuild the experience as a modern application.
+              <p className="text-base sm:text-lg text-zinc-300 leading-relaxed max-w-2xl mb-8">
+                Inspect any authorized website, decompose its routes, design tokens, and public assets, reconstruct a modern React + Tailwind + PostgreSQL application with AI, and push directly to GitHub.
               </p>
 
               {/* Central URL Input Bar */}
               <form
                 onSubmit={handleHeroSubmit}
-                className="p-2 rounded-xl border border-slate-800 bg-[#0F1624] shadow-2xl max-w-2xl mb-6"
+                className="p-2 rounded-2xl border border-zinc-800 bg-[#101017]/90 backdrop-blur-md shadow-2xl max-w-2xl mb-6"
               >
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <div className="relative flex-1 flex items-center">
-                    <Globe className="w-4 h-4 text-slate-400 absolute left-3.5" />
+                    <Globe className="w-4 h-4 text-zinc-400 absolute left-4" />
                     <input
                       type="text"
                       value={heroUrl}
                       onChange={(e) => setHeroUrl(e.target.value)}
                       placeholder="https://example.com"
                       aria-label="Target website URL to analyze"
-                      className="w-full pl-10 pr-4 py-3 bg-transparent text-sm font-mono text-white focus:outline-none"
+                      className="w-full pl-11 pr-4 py-3.5 bg-transparent text-sm font-mono text-white focus:outline-none"
                     />
                   </div>
                   <button
                     type="submit"
-                    className="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
+                    className="px-6 py-3.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white flex items-center justify-center gap-2 shadow-lg shadow-rose-950/60 transition-colors whitespace-nowrap"
                   >
-                    <span>Analyze a Website</span>
+                    <span>Analyze Website</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </form>
 
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={() => onOpenAnalyzer(heroUrl)}
-                  className="px-5 py-2.5 rounded-lg bg-white text-slate-950 hover:bg-slate-200 text-xs font-semibold transition-colors whitespace-nowrap"
+                  className="px-5 py-2.5 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-bold transition-colors whitespace-nowrap"
                 >
-                  Analyze a Website
+                  Recreate Website with AI
                 </button>
                 <button
                   onClick={() => (isAuthenticated ? onNavigateDashboard() : onOpenAuth('login'))}
-                  className="px-5 py-2.5 rounded-lg border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-200 hover:text-white transition-colors whitespace-nowrap"
+                  className="px-5 py-2.5 rounded-xl border border-zinc-700 hover:border-zinc-500 text-xs font-bold text-zinc-200 hover:text-white flex items-center gap-2 transition-colors whitespace-nowrap"
                 >
-                  View Projects
+                  <GitBranch className="w-3.5 h-3.5 text-rose-500" />
+                  <span>{isAuthenticated ? 'Open Project Workspace' : 'Continue with GitHub'}</span>
                 </button>
-                <div className="text-xs text-slate-400 font-mono">
-                  SSRF Protected · Real-Time SSE Crawler · Validated ZIP Export
-                </div>
               </div>
             </div>
 
             <div className="lg:col-span-5">
-              <div className="rounded-xl border border-slate-800 bg-[#0F1624] overflow-hidden shadow-2xl">
+              <div className="rounded-2xl border border-zinc-800 bg-[#101017] overflow-hidden shadow-2xl">
                 {!imgError ? (
                   <img
                     src={heroDiagramImg}
-                    alt="Isometric diagram of SiteForge AI decomposing web DOM structures into modular React and PostgreSQL architecture"
+                    alt="Site Forge AI architecture engine decomposing web DOM trees into modular React, Tailwind, and PostgreSQL code"
                     referrerPolicy="no-referrer"
                     onError={() => setImgError(true)}
                     className="w-full h-72 sm:h-80 object-cover"
                   />
                 ) : (
-                  <div className="w-full h-72 sm:h-80 bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-950 flex flex-col items-center justify-center p-6 text-center">
-                    <Layers className="w-10 h-10 text-indigo-400 mb-3" />
-                    <div className="text-sm font-semibold text-white">SiteForge Reconstruction Engine</div>
-                    <div className="text-xs text-slate-400 mt-1">DOM AST → Modular React + Tailwind + PostgreSQL</div>
+                  <div className="w-full h-72 sm:h-80 bg-gradient-to-br from-zinc-900 via-rose-950/30 to-zinc-950 flex flex-col items-center justify-center p-6 text-center">
+                    <Layers className="w-10 h-10 text-rose-500 mb-3" />
+                    <div className="text-sm font-bold text-white">Site Forge AI Reconstruction Engine</div>
+                    <div className="text-xs text-zinc-400 mt-1">DOM AST → Modular React + Tailwind + GitHub Sync</div>
                   </div>
                 )}
-                <div className="p-4 border-t border-slate-800/80 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400 font-mono">
-                  <span>PIPELINE: CRAWLER → AST → AI → ZIP</span>
-                  <span className="text-emerald-400">PRODUCTION READY</span>
+                <div className="p-4 border-t border-zinc-800/80 bg-[#0A0A0F] flex items-center justify-between text-xs text-zinc-400 font-mono">
+                  <span>URL → ANALYZE → AI REBUILD → GITHUB</span>
+                  <span className="text-rose-400 font-semibold">FORGE ENGINE v2</span>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* HOW IT WORKS SECTION */}
-        <section id="how-it-works" className="py-20 border-b border-slate-800/80">
+        {/* END-TO-END WORKFLOW PIPELINE */}
+        <section id="workflow" className="py-20 border-b border-zinc-800/80">
           <div className="max-w-7xl mx-auto px-6">
             <div className="max-w-2xl mb-12">
-              <div className="text-xs font-mono text-indigo-400 mb-2">WORKFLOW ARCHITECTURE</div>
+              <div className="text-xs font-mono text-rose-500 mb-2">SITE FORGE AI WORKFLOW</div>
               <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
-                From Public URL to Maintainable Full-Stack Codebase
+                Complete Pipeline From Public URL to GitHub Repository
               </h2>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Every stage executes real network crawling, AST parsing, Gemini 3.8 code synthesis, and binary ZIP validation.
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Every stage executes real network inspection, DOM & CSS token extraction, AI code synthesis, binary ZIP packaging, and GitHub Git Data API commits.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 {
-                  num: '01. Live Authorized Crawl',
-                  desc: 'Validates DNS & SSRF boundaries, respects robots.txt, and streams live page & asset extraction over Server-Sent Events.',
+                  step: '01',
+                  title: 'Analyze Website',
+                  desc: 'Enter any authorized URL. Crawler discovers public routes, HTML structure, stylesheets, scripts, SVGs, and fonts.',
                   icon: Globe,
                 },
                 {
-                  num: '02. Deep Stack Analysis',
-                  desc: 'Detects frameworks (React, Next.js, Vue, Tailwind, WordPress), extracts hex color palettes, typography, and classifies routes.',
+                  step: '02',
+                  title: 'Inspect Structure & Design',
+                  desc: 'Extracts hex color palettes, typography hierarchies, responsive breakpoints, and technology signatures.',
                   icon: Layers,
                 },
                 {
-                  num: '03. AI Reconstruction',
-                  desc: 'Converts raw DOM structures into reusable React + TypeScript components, responsive layouts, and PostgreSQL schemas.',
+                  step: '03',
+                  title: 'AI Website Reconstruction',
+                  desc: 'Synthesizes clean, modular React + TypeScript + Tailwind components and PostgreSQL database schemas.',
                   icon: Cpu,
                 },
                 {
-                  num: '04. IDE & Validated ZIP',
-                  desc: 'Inspect and edit files in the browser code explorer, compare versions side-by-side, preview across viewports, and export ZIP.',
-                  icon: Download,
+                  step: '04',
+                  title: 'Project Workspace & Export',
+                  desc: 'Preview across desktop, tablet, and mobile viewports, edit source files in the IDE, and export a validated ZIP.',
+                  icon: Code2,
                 },
-              ].map((step) => {
-                const Icon = step.icon;
+                {
+                  step: '05',
+                  title: 'Push to GitHub',
+                  desc: 'Create a new public or private GitHub repository and push the generated project with a single click.',
+                  icon: GitBranch,
+                },
+              ].map((item) => {
+                const Icon = item.icon;
                 return (
-                  <div key={step.num} className="p-6 rounded-xl border border-slate-800 bg-[#0D1320]">
-                    <Icon className="w-5 h-5 text-indigo-400 mb-4" />
-                    <h3 className="text-base font-semibold text-white mb-2">{step.num}</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">{step.desc}</p>
+                  <div
+                    key={item.step}
+                    className="p-5 rounded-2xl border border-zinc-800/90 bg-[#101017] flex flex-col justify-between space-y-4 hover:border-rose-500/40 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-9 h-9 rounded-xl bg-rose-600/15 border border-rose-500/30 flex items-center justify-center">
+                          <Icon className="w-4 h-4 text-rose-500" />
+                        </div>
+                        <span className="text-xs font-mono text-zinc-500">{item.step}</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-white mb-2">{item.title}</h3>
+                      <p className="text-xs text-zinc-400 leading-relaxed">{item.desc}</p>
+                    </div>
                   </div>
                 );
               })}
@@ -248,161 +279,198 @@ export function LandingPage({
           </div>
         </section>
 
-        {/* WEBSITE ANALYZER & AI RECREATION */}
-        <section id="analyzer" className="py-20 border-b border-slate-800/80 bg-[#0B101B]">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="text-xs font-mono text-indigo-400 mb-2">FOUR EXTRACTION & REBUILD MODES</div>
-              <h2 className="text-3xl font-bold text-white tracking-tight mb-4">
-                Precision Control Over Every Route and Asset
+        {/* PLATFORM RECONSTRUCTION PRESETS (TRANSFORMED FROM UPLOADED ARCHIVE) */}
+        <section id="platforms" className="py-20 border-b border-zinc-800/80 bg-[#0B0B10]">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+              <div>
+                <div className="text-xs font-mono text-rose-500 mb-2">PLATFORM RECONSTRUCTION PROFILES</div>
+                <h2 className="text-3xl font-bold text-white tracking-tight">
+                  Analyze & Rebuild Any Web Platform Into Ownable Code
+                </h2>
+                <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
+                  Select a platform profile below to pre-configure Site Forge AI's crawler rules, asset extractors, and AI reconstruction engine for that architecture.
+                </p>
+              </div>
+              <button
+                onClick={() => onOpenAnalyzer(heroUrl)}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white self-start md:self-auto whitespace-nowrap"
+              >
+                Open Custom URL Analyzer →
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {PLATFORM_PRESETS.map((preset) => (
+                <div
+                  key={preset.id}
+                  className="p-5 rounded-2xl border border-zinc-800/90 bg-[#12121A] flex flex-col justify-between space-y-4 hover:border-rose-500/50 transition-all"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h3 className="text-sm font-bold text-white">{preset.name}</h3>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-rose-400">
+                        {preset.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed mb-3">{preset.signatureNotes}</p>
+                    <div className="text-[11px] font-mono text-zinc-500">
+                      Target: {preset.aiRebuildHint}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenAnalyzer(preset.sampleUrl, preset.id)}
+                    className="w-full py-2 px-3 rounded-xl border border-zinc-700 hover:border-rose-500 hover:bg-rose-600/15 text-xs font-bold text-zinc-200 hover:text-white flex items-center justify-between transition-colors"
+                  >
+                    <span>Analyze {preset.name} Site</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-rose-500" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* AI RECONSTRUCTION STUDIO & GITHUB PUBLISHING */}
+        <section id="recreation" className="py-20 border-b border-zinc-800/80">
+          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div className="lg:col-span-6 space-y-5">
+              <div className="text-xs font-mono text-rose-500">AI RECONSTRUCTION & GITHUB STUDIO</div>
+              <h2 className="text-3xl font-bold text-white tracking-tight">
+                Interactive Project Workspace With Live Sandbox & GitHub Sync
               </h2>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                Whether you are migrating a legacy marketing site, auditing frontend architecture, or rebuilding a single dashboard screen into React components, SiteForge AI adapts to your workflow.
+              <p className="text-sm text-zinc-300 leading-relaxed">
+                Site Forge AI goes far beyond static file archiving. Once a website is analyzed, open it in the Project Workspace to inspect pages, browse assets, refactor code with AI, generate PostgreSQL schemas, and push directly to GitHub.
               </p>
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 {[
-                  {
-                    title: 'Mode A — Static & Source Download',
-                    detail: 'Packages discovered HTML, stylesheets, scripts, vectors, and assets into a structured archive.',
-                  },
-                  {
-                    title: 'Mode B — Deep Structural Analysis',
-                    detail: 'Produces a comprehensive breakdown of routes, frameworks, CSS tokens, breakpoints, and external dependencies.',
-                  },
-                  {
-                    title: 'Mode C — AI Full-Stack Recreation',
-                    detail: 'Synthesizes modular React components, state hooks, Express API routes, and Drizzle/PostgreSQL migrations.',
-                  },
-                  {
-                    title: 'Mode D — Page-Only Selective Extraction',
-                    detail: 'Target individual routes such as Pricing, Landing, Documentation, or sanitized Authentication UI layouts.',
-                  },
-                ].map((item) => (
-                  <div key={item.title} className="p-4 rounded-lg border border-slate-800 bg-[#0F1624]">
-                    <div className="text-sm font-semibold text-white mb-1">{item.title}</div>
-                    <div className="text-xs text-slate-400">{item.detail}</div>
+                  ['Page & Route Tree', 'Inspect status codes, DOM hierarchy, and route classification.'],
+                  ['Asset Browser', 'Filter discovered CSS, JS, SVGs, images, and web fonts.'],
+                  ['AI Rebuild Studio', 'Prompt AI to modernize layouts, colors, and TypeScript components.'],
+                  ['1-Click GitHub Push', 'Create public or private repos and commit generated files via API.'],
+                ].map(([title, desc]) => (
+                  <div key={title} className="p-4 rounded-xl border border-zinc-800 bg-[#101017]">
+                    <div className="text-xs font-bold text-white mb-1">{title}</div>
+                    <div className="text-xs text-zinc-400 leading-relaxed">{desc}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div id="recreation" className="rounded-xl border border-slate-800 bg-[#0F1624] p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div>
-                  <div className="text-sm font-bold text-white">AI Reconstruction Workspace</div>
-                  <div className="text-xs text-slate-400">Split-screen analysis, code explorer & sandboxed preview</div>
+            <div className="lg:col-span-6 rounded-2xl border border-zinc-800 bg-[#101017] p-6 space-y-5 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <ForgeMark className="w-6 h-6" />
+                  <div>
+                    <div className="text-sm font-bold text-white">Site Forge AI Studio</div>
+                    <div className="text-xs text-zinc-400">Live Analysis · AI Reconstruction · GitHub Publisher</div>
+                  </div>
                 </div>
-                <span className="text-xs font-mono text-indigo-400">React · Tailwind · PostgreSQL</span>
+                <span className="text-xs font-mono text-rose-400">React · Tailwind · PostgreSQL</span>
               </div>
 
-              <div className="space-y-3 font-mono text-xs">
-                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-300">
-                  <div className="text-slate-500 mb-1">Extracted Structure</div>
-                  <div>├── src/components/Navbar.tsx</div>
-                  <div>├── src/components/Hero.tsx</div>
-                  <div>├── src/components/DashboardLayout.tsx</div>
-                  <div>├── src/db/models.ts</div>
-                  <div>└── migrations/001_initial.sql</div>
+              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                <div className="p-3.5 rounded-xl bg-[#08080C] border border-zinc-800 text-zinc-300 space-y-1.5">
+                  <div className="text-zinc-500 text-[11px]">LIVE ANALYSIS PIPELINE</div>
+                  <div className="text-emerald-400">✓ Connecting</div>
+                  <div className="text-emerald-400">✓ Discovering pages</div>
+                  <div className="text-emerald-400">✓ Inspecting HTML & CSS</div>
+                  <div className="text-emerald-400">✓ Discovering assets</div>
+                  <div className="text-rose-400 font-bold">● AI reconstruction</div>
                 </div>
 
-                <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-500/30 text-indigo-200">
-                  <div className="text-indigo-400 mb-1">Interactive AI Prompt</div>
-                  <div>"Make the dashboard sidebar collapsible, update the primary accent to crimson, and generate PostgreSQL tables for user projects."</div>
+                <div className="p-3.5 rounded-xl bg-[#08080C] border border-zinc-800 text-zinc-300 space-y-1.5">
+                  <div className="text-zinc-500 text-[11px]">GENERATED REPOSITORY</div>
+                  <div>├── src/App.tsx</div>
+                  <div>├── src/components/Header.tsx</div>
+                  <div>├── src/db/schema.ts</div>
+                  <div>├── migrations/001_init.sql</div>
+                  <div className="text-emerald-400">└── ✓ Pushed to GitHub</div>
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-between">
-                <span className="text-xs text-slate-400">Every modification creates a restorable version</span>
+              <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-500/30 text-xs text-rose-200 font-mono">
+                "Rebuild this analyzed website into a responsive dark-mode SaaS dashboard with crimson accents and generate PostgreSQL tables."
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-zinc-400">Includes ZIP export & GitHub repository creation</span>
                 <button
                   onClick={() => onOpenAnalyzer(heroUrl)}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-colors"
                 >
-                  Launch Workspace
+                  Launch Analyzer
                 </button>
               </div>
             </div>
           </div>
         </section>
 
-        {/* SUPPORTED TECHNOLOGIES & SECURITY */}
-        <section id="security" className="py-20 border-b border-slate-800/80">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12">
-            <div className="lg:col-span-6">
-              <div className="text-xs font-mono text-emerald-400 mb-2">SECURITY & ACCEPTABLE USE</div>
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Built for Authorized Engineering, Migrations & Audits
+        {/* ENGINEERING PLAYBOOKS & GUIDES */}
+        <section id="playbooks" className="py-20 border-b border-zinc-800/80 bg-[#0B0B10]">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="max-w-2xl mb-10">
+              <div className="text-xs font-mono text-rose-500 mb-2">RECONSTRUCTION PLAYBOOKS</div>
+              <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
+                Guided Workflows for Code Extraction, Archival & AI Rebuilds
               </h2>
-              <p className="text-sm text-slate-400 leading-relaxed mb-6">
-                SiteForge AI enforces strict technical safeguards so teams can safely audit, back up, and modernize web properties they own or have permission to test.
+              <p className="text-sm text-zinc-400">
+                Execute structured engineering playbooks directly inside Site Forge AI.
               </p>
-              <ul className="space-y-3 text-xs text-slate-300">
-                <li className="flex items-start gap-2.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-white">SSRF & Private Network Blocking:</strong> Automatically resolves DNS and rejects loopback, RFC1918 private networks, and cloud metadata endpoints.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-white">Credential & Cookie Isolation:</strong> Never captures visitor passwords, session tokens, or MFA inputs. Authentication routes are sanitized for UI layout reconstruction only.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>
-                    <strong className="text-white">Sandboxed Preview Execution:</strong> Reconstructed applications render inside isolated iframe sandboxes without host execution access.
-                  </span>
-                </li>
-              </ul>
             </div>
 
-            <div className="lg:col-span-6">
-              <div className="text-xs font-mono text-indigo-400 mb-2">TECHNOLOGY SIGNATURE ENGINE</div>
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Supported Source & Target Technologies
-              </h2>
-              <p className="text-sm text-slate-400 leading-relaxed mb-6">
-                Our analyzer inspects DOM markers, script bundles, CSS rules, and HTTP headers, labeling each signature clearly as <span className="text-white font-mono">Detected</span> or <span className="text-white font-mono">Likely</span>.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono">
-                {[
-                  'React / Next.js',
-                  'Vue / Nuxt',
-                  'Angular',
-                  'Svelte / SvelteKit',
-                  'Tailwind CSS',
-                  'Bootstrap',
-                  'WordPress',
-                  'Shopify',
-                  'Webflow / Framer',
-                  'Wix',
-                  'PostgreSQL / Drizzle',
-                  'Cloudflare / Vercel',
-                ].map((tech) => (
-                  <div
-                    key={tech}
-                    className="px-3.5 py-2.5 rounded-lg border border-slate-800 bg-[#0D1320] text-slate-200"
-                  >
-                    {tech}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {RECONSTRUCTION_PLAYBOOKS.map((pb) => (
+                <div
+                  key={pb.id}
+                  className="p-6 rounded-2xl border border-zinc-800 bg-[#12121A] flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono text-rose-400 flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>{pb.category}</span>
+                      </span>
+                      <span className="text-[11px] font-mono text-zinc-500">Mode: {pb.recommendedMode}</span>
+                    </div>
+                    <h3 className="text-base font-bold text-white">{pb.title}</h3>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{pb.summary}</p>
+                    <ol className="space-y-1.5 pt-2 border-t border-zinc-800/80 text-xs text-zinc-300">
+                      {pb.steps.map((step, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="font-mono text-rose-500 font-bold">{i + 1}.</span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
                   </div>
-                ))}
-              </div>
+                  <div className="pt-2">
+                    <button
+                      onClick={() => onOpenAnalyzer(heroUrl)}
+                      className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-rose-600 border border-zinc-700 hover:border-rose-500 text-xs font-bold text-white transition-colors"
+                    >
+                      Run Playbook in Analyzer →
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* PRICING ARCHITECTURE */}
-        <section id="pricing" className="py-20 border-b border-slate-800/80 bg-[#0B101B]">
+        <section id="pricing" className="py-20 border-b border-zinc-800/80">
           <div className="max-w-7xl mx-auto px-6">
             <div className="max-w-2xl mb-12">
-              <div className="text-xs font-mono text-indigo-400 mb-2">TRANSPARENT SCALING</div>
+              <div className="text-xs font-mono text-rose-500 mb-2">WORKSPACE PLANS</div>
               <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
-                Plans Built for Individual Engineers and Enterprise Teams
+                Built for Solo Developers, Agencies & Enterprise Engineering Teams
               </h2>
-              <p className="text-sm text-slate-400">
-                No artificial daily lockouts. Upgrade or switch tiers anytime from your workspace billing settings.
+              <p className="text-sm text-zinc-400">
+                Switch plans anytime inside your workspace settings. Every tier includes real crawling, ZIP exports, and GitHub integration.
               </p>
             </div>
 
@@ -410,7 +478,7 @@ export function LandingPage({
               {[
                 {
                   tier: 'Free',
-                  audience: 'For individual evaluation & learning',
+                  audience: 'For evaluation & single-site analysis',
                   price: '$0',
                   cadence: 'per month',
                   pages: '500 crawl pages / mo',
@@ -419,7 +487,7 @@ export function LandingPage({
                 },
                 {
                   tier: 'Pro',
-                  audience: 'For full-stack engineers & freelancers',
+                  audience: 'For full-stack engineers & creators',
                   price: '$29',
                   cadence: 'per month',
                   pages: '10,000 crawl pages / mo',
@@ -429,7 +497,7 @@ export function LandingPage({
                 },
                 {
                   tier: 'Business',
-                  audience: 'For agencies & migration teams',
+                  audience: 'For agencies & migration studios',
                   price: '$99',
                   cadence: 'per month',
                   pages: '50,000 crawl pages / mo',
@@ -448,35 +516,42 @@ export function LandingPage({
               ].map((plan) => (
                 <div
                   key={plan.tier}
-                  className={`p-6 rounded-xl border flex flex-col justify-between ${
+                  className={`p-6 rounded-2xl border flex flex-col justify-between ${
                     plan.featured
-                      ? 'border-indigo-500 bg-[#11192E]'
-                      : 'border-slate-800 bg-[#0D1320]'
+                      ? 'border-rose-500 bg-gradient-to-b from-rose-950/25 to-[#101017]'
+                      : 'border-zinc-800 bg-[#101017]'
                   }`}
                 >
                   <div>
-                    <div className="text-lg font-bold text-white">{plan.tier}</div>
-                    <div className="text-xs text-slate-400 mt-1 mb-5">{plan.audience}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-lg font-bold text-white">{plan.tier}</div>
+                      {plan.featured && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-600 text-white font-bold">
+                          MOST POPULAR
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-zinc-400 mt-1 mb-5">{plan.audience}</div>
                     <div className="flex items-baseline gap-1.5 mb-6 tabular-nums">
                       <span className="text-3xl font-bold text-white font-mono">{plan.price}</span>
-                      <span className="text-xs text-slate-400">{plan.cadence}</span>
+                      <span className="text-xs text-zinc-400">{plan.cadence}</span>
                     </div>
-                    <div className="space-y-2.5 text-xs text-slate-300 border-t border-slate-800 pt-4 font-mono tabular-nums">
+                    <div className="space-y-2.5 text-xs text-zinc-300 border-t border-zinc-800 pt-4 font-mono tabular-nums">
                       <div>· {plan.pages}</div>
                       <div>· {plan.storage}</div>
                       <div>· {plan.ai}</div>
-                      <div>· Full ZIP & IDE Code Explorer</div>
+                      <div>· GitHub Repo Sync & ZIP Export</div>
                     </div>
                   </div>
                   <button
                     onClick={() => (isAuthenticated ? onNavigateDashboard() : onOpenAuth('signup'))}
-                    className={`mt-6 w-full py-2.5 px-4 rounded-lg text-xs font-semibold transition-colors ${
+                    className={`mt-6 w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-colors ${
                       plan.featured
-                        ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                        : 'border border-slate-700 hover:border-slate-500 text-slate-200 hover:text-white'
+                        ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                        : 'border border-zinc-700 hover:border-zinc-500 text-zinc-200 hover:text-white'
                     }`}
                   >
-                    {isAuthenticated ? 'Manage in Dashboard' : `Start with ${plan.tier}`}
+                    {isAuthenticated ? 'Manage in Workspace' : `Start with ${plan.tier}`}
                   </button>
                 </div>
               ))}
@@ -484,7 +559,7 @@ export function LandingPage({
           </div>
         </section>
 
-        {/* FAQ SECTION */}
+        {/* FAQ & SECURITY SECTION */}
         <section id="faq" className="py-20">
           <div className="max-w-4xl mx-auto px-6">
             <h2 className="text-2xl font-bold text-white mb-8">Frequently Asked Questions</h2>
@@ -492,21 +567,21 @@ export function LandingPage({
               {faqs.map((item, idx) => {
                 const isOpen = openFaq === idx;
                 return (
-                  <div key={item.q} className="rounded-xl border border-slate-800 bg-[#0D1320]">
+                  <div key={item.q} className="rounded-2xl border border-zinc-800 bg-[#101017]">
                     <button
                       type="button"
                       onClick={() => setOpenFaq(isOpen ? null : idx)}
-                      className="w-full px-5 py-4 text-left flex items-center justify-between gap-4 text-sm font-semibold text-white"
+                      className="w-full px-5 py-4 text-left flex items-center justify-between gap-4 text-sm font-bold text-white"
                     >
                       <span>{item.q}</span>
                       <ChevronDown
-                        className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+                        className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform ${
                           isOpen ? 'rotate-180' : ''
                         }`}
                       />
                     </button>
                     {isOpen && (
-                      <div className="px-5 pb-4 text-xs text-slate-300 leading-relaxed border-t border-slate-800/60 pt-3">
+                      <div className="px-5 pb-4 text-xs text-zinc-300 leading-relaxed border-t border-zinc-800/60 pt-3">
                         {item.a}
                       </div>
                     )}
@@ -518,19 +593,22 @@ export function LandingPage({
         </section>
       </main>
 
-      {/* QUIET FOOTER */}
-      <footer className="border-t border-slate-800/80 py-8 px-6 text-xs text-slate-500">
+      {/* FOOTER */}
+      <footer className="border-t border-zinc-800/80 py-8 px-6 text-xs text-zinc-500 bg-[#050508]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>© {new Date().getFullYear()} SiteForge AI. Authorized Website Analysis & Reconstruction Platform.</div>
-          <div className="flex items-center gap-6">
-            <a href="/api/openapi.json" target="_blank" rel="noreferrer" className="hover:text-slate-300">
-              OpenAPI Spec
+          <div className="flex items-center gap-2.5">
+            <ForgeMark className="w-5 h-5" />
+            <span>© {new Date().getFullYear()} Site Forge AI. Website Analyzer & AI Reconstruction Studio.</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-6">
+            <a href="/api/openapi.json" target="_blank" rel="noreferrer" className="hover:text-zinc-300">
+              OpenAPI 3.1
             </a>
-            <a href="/health" target="_blank" rel="noreferrer" className="hover:text-slate-300">
+            <a href="/health" target="_blank" rel="noreferrer" className="hover:text-zinc-300">
               System Health
             </a>
-            <button onClick={() => onOpenAuth('login')} className="hover:text-slate-300">
-              Developer Sign In
+            <button onClick={() => onOpenAuth('login')} className="hover:text-zinc-300">
+              Continue with GitHub
             </button>
           </div>
         </div>

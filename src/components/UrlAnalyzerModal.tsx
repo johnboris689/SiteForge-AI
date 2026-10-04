@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Globe, ShieldCheck, Sliders, X, Play, Layers, Cpu, Download, FileCode } from 'lucide-react';
+import { Globe, ShieldCheck, Sliders, X, Play, Layers, Cpu, Download, FileCode, Sparkles } from 'lucide-react';
 import { DEFAULT_CRAWL_CONFIG, CrawlConfig } from '../shared/types.ts';
+import { PLATFORM_PRESETS, mergePresetWithConfig } from '../shared/platform-presets.ts';
 
 interface UrlAnalyzerModalProps {
   isOpen: boolean;
   initialUrl?: string;
+  initialPresetId?: string;
   onClose: () => void;
   onStartProject: (payload: {
     url: string;
@@ -18,12 +20,14 @@ interface UrlAnalyzerModalProps {
 export function UrlAnalyzerModal({
   isOpen,
   initialUrl = 'https://example.com',
+  initialPresetId,
   onClose,
   onStartProject,
 }: UrlAnalyzerModalProps) {
   const [url, setUrl] = useState(initialUrl);
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<'DOWNLOAD' | 'ANALYZE' | 'RECREATE' | 'PAGE_ONLY'>('ANALYZE');
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(initialPresetId || null);
+  const [mode, setMode] = useState<'DOWNLOAD' | 'ANALYZE' | 'RECREATE' | 'PAGE_ONLY'>('RECREATE');
   const [config, setConfig] = useState<CrawlConfig>({ ...DEFAULT_CRAWL_CONFIG });
   const [customUrlsText, setCustomUrlsText] = useState('');
   const [acceptedPolicy, setAcceptedPolicy] = useState(true);
@@ -32,9 +36,35 @@ export function UrlAnalyzerModal({
 
   React.useEffect(() => {
     if (initialUrl) setUrl(initialUrl);
-  }, [initialUrl]);
+    if (initialPresetId) {
+      const preset = PLATFORM_PRESETS.find((p) => p.id === initialPresetId);
+      if (preset) {
+        setSelectedPresetId(preset.id);
+        setMode(preset.defaultMode);
+        setConfig(mergePresetWithConfig(preset));
+      }
+    }
+  }, [initialUrl, initialPresetId]);
 
   if (!isOpen) return null;
+
+  const handleSelectPreset = (presetId: string) => {
+    if (selectedPresetId === presetId) {
+      setSelectedPresetId(null);
+      setConfig({ ...DEFAULT_CRAWL_CONFIG });
+      return;
+    }
+    const preset = PLATFORM_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setSelectedPresetId(preset.id);
+    setMode(preset.defaultMode);
+    setConfig(mergePresetWithConfig(preset));
+    if (!url || url === 'https://example.com') {
+      setUrl(preset.sampleUrl);
+    }
+  };
+
+  const activePreset = PLATFORM_PRESETS.find((p) => p.id === selectedPresetId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,54 +99,60 @@ export function UrlAnalyzerModal({
 
   const modes = [
     {
-      id: 'DOWNLOAD' as const,
-      title: 'MODE A — DOWNLOAD',
-      desc: 'Extract authorized public HTML, CSS, JS, and media into a downloadable ZIP project.',
-      icon: Download,
-    },
-    {
-      id: 'ANALYZE' as const,
-      title: 'MODE B — ANALYZE',
-      desc: 'Inspect routes, frameworks, CSS architecture, color palette, typography, and assets.',
-      icon: Layers,
-    },
-    {
       id: 'RECREATE' as const,
-      title: 'MODE C — RECREATE',
-      desc: 'Analyze structure and reconstruct a clean, modular React + Tailwind application with AI.',
+      title: 'Recreate Website with AI',
+      badge: 'AI Rebuild',
+      desc: 'Analyze structure, design tokens, and routes to synthesize a clean React + Tailwind + PostgreSQL project.',
       icon: Cpu,
     },
     {
+      id: 'ANALYZE' as const,
+      title: 'Analyze Website Architecture',
+      badge: 'Deep Inspect',
+      desc: 'Inspect multi-page routes, detected frameworks, CSS tokens, typography, and public assets.',
+      icon: Layers,
+    },
+    {
       id: 'PAGE_ONLY' as const,
-      title: 'MODE D — PAGE ONLY',
-      desc: 'Target a specific route (Landing, Pricing, Dashboard, or Auth UI layout) for export.',
+      title: 'Analyze Single Page',
+      badge: 'Single Route',
+      desc: 'Target one specific route (Landing, Pricing, Documentation, or Auth UI layout) for rapid reconstruction.',
       icon: FileCode,
+    },
+    {
+      id: 'DOWNLOAD' as const,
+      title: 'Export Project Archive',
+      badge: 'ZIP Package',
+      desc: 'Retrieve public HTML, CSS, JavaScript, SVGs, and fonts into an organized, downloadable project structure.',
+      icon: Download,
     },
   ];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="analyzer-config-title"
     >
-      <div className="w-full max-w-3xl rounded-xl border border-slate-800 bg-[#0D1320] p-6 shadow-2xl my-8">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <Sliders className="w-5 h-5 text-indigo-400" />
+      <div className="w-full max-w-4xl rounded-2xl border border-zinc-800/90 bg-[#0D0D12] p-6 sm:p-8 shadow-2xl my-8">
+        <div className="flex items-center justify-between pb-5 border-b border-zinc-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-600/15 border border-rose-500/30 flex items-center justify-center">
+              <Sliders className="w-4 h-4 text-rose-500" />
+            </div>
             <div>
-              <h2 id="analyzer-config-title" className="text-lg font-bold text-white">
-                Configure Website Analysis & Extraction
+              <h2 id="analyzer-config-title" className="text-lg font-bold text-white tracking-tight">
+                Site Forge AI — Website Analyzer & Reconstruction Studio
               </h2>
-              <p className="text-xs text-slate-400">
-                Define crawl boundaries, asset extraction rules, and reconstruction mode.
+              <p className="text-xs text-zinc-400">
+                Configure URL target, platform profile, crawl depth, asset filters, and AI reconstruction pipeline.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800/60 transition-colors"
             aria-label="Close configurator"
           >
             <X className="w-4 h-4" />
@@ -124,43 +160,83 @@ export function UrlAnalyzerModal({
         </div>
 
         {error && (
-          <div className="mt-4 p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-xs text-red-200">
+          <div className="mt-4 p-3.5 rounded-xl border border-rose-500/40 bg-rose-950/30 text-xs text-rose-200">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-5">
+          {/* Platform Profile Presets */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+                <span>Platform Optimization Profile (Optional)</span>
+              </label>
+              {activePreset && (
+                <span className="text-[11px] font-mono text-rose-400">
+                  {activePreset.name} Profile Active
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1.5">
+              {PLATFORM_PRESETS.slice(0, 10).map((preset) => {
+                const isSelected = selectedPresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleSelectPreset(preset.id)}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-all ${
+                      isSelected
+                        ? 'border-rose-500 bg-rose-600/20 text-white shadow-sm'
+                        : 'border-zinc-800 bg-[#14141C] text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
+                    }`}
+                  >
+                    {preset.name}
+                  </button>
+                );
+              })}
+            </div>
+            {activePreset && (
+              <div className="mt-2 p-2.5 rounded-lg border border-rose-500/25 bg-rose-950/15 text-[11px] text-zinc-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span>{activePreset.signatureNotes}</span>
+                <span className="font-mono text-rose-300 shrink-0">{activePreset.category}</span>
+              </div>
+            )}
+          </div>
+
           {/* URL & Project Name */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Target Website URL</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Website URL to Analyze</label>
               <div className="relative">
-                <Globe className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                <Globe className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
                 <input
                   type="text"
                   required
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm font-mono text-white focus:border-indigo-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-zinc-800 bg-[#08080C] text-sm font-mono text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Project Name (Optional)</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Project Name (Optional)</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Auto-detected from domain"
-                className="w-full px-3.5 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                placeholder="Auto-named from domain"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
               />
             </div>
           </div>
 
-          {/* 4 Selectable Analysis Modes */}
+          {/* 4 Selectable Analysis & Reconstruction Modes */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-2">Analysis & Operation Mode</label>
+            <label className="block text-xs font-semibold text-zinc-300 mb-2">Choose Operation Workflow</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {modes.map((m) => {
                 const Icon = m.icon;
@@ -173,19 +249,26 @@ export function UrlAnalyzerModal({
                       setMode(m.id);
                       if (m.id === 'PAGE_ONLY') {
                         setConfig((prev) => ({ ...prev, scope: 'SINGLE_PAGE', maxPages: 1 }));
+                      } else if (config.scope === 'SINGLE_PAGE') {
+                        setConfig((prev) => ({ ...prev, scope: 'SAME_DOMAIN', maxPages: 8 }));
                       }
                     }}
-                    className={`p-3.5 rounded-lg border text-left transition-colors ${
+                    className={`p-4 rounded-xl border text-left transition-all ${
                       active
-                        ? 'border-indigo-500 bg-indigo-500/10 text-white'
-                        : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700'
+                        ? 'border-rose-500 bg-rose-600/10 text-white shadow-md'
+                        : 'border-zinc-800/90 bg-[#121218] text-zinc-300 hover:border-zinc-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-semibold text-xs text-white mb-1">
-                      <Icon className="w-4 h-4 text-indigo-400" />
-                      <span>{m.title}</span>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 font-bold text-xs text-white">
+                        <Icon className="w-4 h-4 text-rose-500" />
+                        <span>{m.title}</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                        {m.badge}
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">{m.desc}</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{m.desc}</p>
                   </button>
                 );
               })}
@@ -195,39 +278,39 @@ export function UrlAnalyzerModal({
           {/* Scope & Extraction Mode */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Analysis Scope</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Discovery Scope</label>
               <select
                 value={config.scope}
                 onChange={(e) => setConfig({ ...config, scope: e.target.value as CrawlConfig['scope'] })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-800 bg-[#08080C] text-xs font-medium text-white focus:border-rose-500 focus:outline-none"
               >
-                <option value="SAME_DOMAIN">Same-Domain Pages</option>
-                <option value="ENTIRE">Entire Website (Up to Limit)</option>
-                <option value="SINGLE_PAGE">Single Page Only</option>
-                <option value="SELECTED_PAGES">Selected Pages (Choose After Discovery)</option>
-                <option value="CUSTOM_LIST">Custom URL List</option>
+                <option value="SAME_DOMAIN">Analyze Website (Same-Domain Routes)</option>
+                <option value="ENTIRE">Analyze Deep Multi-Page Hierarchy</option>
+                <option value="SINGLE_PAGE">Analyze Single Page Only</option>
+                <option value="SELECTED_PAGES">Analyze Selected Pages (Interactive Picker)</option>
+                <option value="CUSTOM_LIST">Analyze Multiple Custom URLs</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Extraction Pipeline</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Reconstruction Engine Depth</label>
               <select
                 value={config.extractionMode}
                 onChange={(e) =>
                   setConfig({ ...config, extractionMode: e.target.value as CrawlConfig['extractionMode'] })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-800 bg-[#08080C] text-xs font-medium text-white focus:border-rose-500 focus:outline-none"
               >
-                <option value="DEEP_ANALYSIS">Deep Website Analysis</option>
-                <option value="STATIC_MIRROR">Static Mirror Extraction</option>
-                <option value="FRONTEND_ANALYSIS">Frontend Component Analysis</option>
-                <option value="AI_RECONSTRUCTION">AI Reconstruction Analysis</option>
+                <option value="AI_RECONSTRUCTION">AI Full-Stack Reconstruction</option>
+                <option value="DEEP_ANALYSIS">Deep Architecture & Design Token Analysis</option>
+                <option value="FRONTEND_ANALYSIS">Frontend Component Decomposition</option>
+                <option value="STATIC_MIRROR">Public Source & Asset Extraction</option>
               </select>
             </div>
           </div>
 
           {config.scope === 'CUSTOM_LIST' && (
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Custom Relative Paths or Same-Domain URLs (one per line)
               </label>
               <textarea
@@ -235,73 +318,86 @@ export function UrlAnalyzerModal({
                 value={customUrlsText}
                 onChange={(e) => setCustomUrlsText(e.target.value)}
                 placeholder="/pricing&#10;/about&#10;/docs"
-                className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full px-3.5 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-xs font-mono text-white focus:border-rose-500 focus:outline-none"
               />
             </div>
           )}
 
-          {/* Crawl Controls */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 border-t border-slate-800/80">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Max Pages</label>
+          {/* Sliders & Numeric Controls */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-zinc-800/80">
+            <div className="p-3 rounded-xl border border-zinc-800/80 bg-[#121218]">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-zinc-400">Max Pages</span>
+                <span className="font-mono font-bold text-white">{config.maxPages}</span>
+              </div>
               <input
-                type="number"
+                type="range"
                 min={1}
                 max={20}
                 value={config.maxPages}
                 onChange={(e) => setConfig({ ...config, maxPages: Number(e.target.value) })}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-sm font-mono text-white"
+                className="w-full accent-rose-600 cursor-pointer"
               />
             </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Max Crawl Depth</label>
+            <div className="p-3 rounded-xl border border-zinc-800/80 bg-[#121218]">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-zinc-400">Crawl Depth</span>
+                <span className="font-mono font-bold text-white">{config.maxDepth}</span>
+              </div>
               <input
-                type="number"
+                type="range"
                 min={0}
                 max={5}
                 value={config.maxDepth}
                 onChange={(e) => setConfig({ ...config, maxDepth: Number(e.target.value) })}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-sm font-mono text-white"
+                className="w-full accent-rose-600 cursor-pointer"
               />
             </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Max File Size (KB)</label>
+            <div className="p-3 rounded-xl border border-zinc-800/80 bg-[#121218]">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-zinc-400">Asset Limit</span>
+                <span className="font-mono font-bold text-white">{config.maxFileSizeKb} KB</span>
+              </div>
               <input
-                type="number"
-                min={128}
-                max={10240}
+                type="range"
+                min={256}
+                max={8192}
+                step={256}
                 value={config.maxFileSizeKb}
                 onChange={(e) => setConfig({ ...config, maxFileSizeKb: Number(e.target.value) })}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-sm font-mono text-white"
+                className="w-full accent-rose-600 cursor-pointer"
               />
             </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Request Delay (ms)</label>
+            <div className="p-3 rounded-xl border border-zinc-800/80 bg-[#121218]">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-zinc-400">Request Delay</span>
+                <span className="font-mono font-bold text-white">{config.requestDelayMs} ms</span>
+              </div>
               <input
-                type="number"
+                type="range"
                 min={0}
-                max={2000}
+                max={1500}
                 step={50}
                 value={config.requestDelayMs}
                 onChange={(e) => setConfig({ ...config, requestDelayMs: Number(e.target.value) })}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-sm font-mono text-white"
+                className="w-full accent-rose-600 cursor-pointer"
               />
             </div>
           </div>
 
           {/* Asset Options & Crawl Flags */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
-            <div>
-              <div className="text-xs font-medium text-slate-300 mb-2">Asset Extraction Filters</div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-zinc-800/80">
+            <div className="p-4 rounded-xl border border-zinc-800/80 bg-[#121218]">
+              <div className="text-xs font-bold text-white mb-2.5">Public Asset Discovery Filters</div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-zinc-300">
                 {(
                   [
-                    ['html', 'HTML Documents'],
+                    ['html', 'HTML Structure'],
                     ['css', 'CSS Stylesheets'],
-                    ['js', 'JavaScript Bundles'],
+                    ['js', 'JavaScript Modules'],
                     ['images', 'Images & Media'],
                     ['svg', 'SVG Icons & Vectors'],
-                    ['fonts', 'Web Fonts'],
+                    ['fonts', 'Typography & Fonts'],
                     ['json', 'Public JSON / Manifest'],
                     ['metadata', 'Sitemap & robots.txt'],
                   ] as const
@@ -316,7 +412,7 @@ export function UrlAnalyzerModal({
                           assets: { ...config.assets, [key]: e.target.checked },
                         })
                       }
-                      className="rounded border-slate-700 bg-slate-900 text-indigo-600"
+                      className="rounded border-zinc-700 bg-zinc-900 text-rose-600 focus:ring-rose-500"
                     />
                     <span>{label}</span>
                   </label>
@@ -324,83 +420,83 @@ export function UrlAnalyzerModal({
               </div>
             </div>
 
-            <div>
-              <div className="text-xs font-medium text-slate-300 mb-2">Crawler Behavior Rules</div>
-              <div className="grid grid-cols-1 gap-2 text-xs text-slate-300">
+            <div className="p-4 rounded-xl border border-zinc-800/80 bg-[#121218]">
+              <div className="text-xs font-bold text-white mb-2.5">Analyzer & Security Boundaries</div>
+              <div className="grid grid-cols-1 gap-2 text-xs text-zinc-300">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={config.respectRobotsTxt}
                     onChange={(e) => setConfig({ ...config, respectRobotsTxt: e.target.checked })}
-                    className="rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    className="rounded border-zinc-700 bg-zinc-900 text-rose-600"
                   />
-                  <span>Respect robots.txt directives & crawl boundaries</span>
+                  <span>Respect robots.txt directives & rate limits</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={config.includeSubdomains}
-                    onChange={(e) => setConfig({ ...config, includeSubdomains: e.target.checked })}
-                    className="rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    checked={config.sameDomainOnly}
+                    onChange={(e) => setConfig({ ...config, sameDomainOnly: e.target.checked })}
+                    className="rounded border-zinc-700 bg-zinc-900 text-rose-600"
                   />
-                  <span>Include authorized subdomains</span>
+                  <span>Enforce same-domain link boundary</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={config.followExternalAssets}
                     onChange={(e) => setConfig({ ...config, followExternalAssets: e.target.checked })}
-                    className="rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    className="rounded border-zinc-700 bg-zinc-900 text-rose-600"
                   />
-                  <span>Fetch CDN & external stylesheets/assets</span>
+                  <span>Inspect CDN stylesheets & public design assets</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={config.stopOnError}
-                    onChange={(e) => setConfig({ ...config, stopOnError: e.target.checked })}
-                    className="rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    checked={config.includeSubdomains}
+                    onChange={(e) => setConfig({ ...config, includeSubdomains: e.target.checked })}
+                    className="rounded border-zinc-700 bg-zinc-900 text-rose-600"
                   />
-                  <span>Stop crawl immediately on HTTP error</span>
+                  <span>Include authorized subdomains</span>
                 </label>
               </div>
             </div>
           </div>
 
           {/* Acceptable Use Policy Confirmation */}
-          <div className="p-3.5 rounded-lg border border-indigo-500/30 bg-indigo-950/20">
+          <div className="p-4 rounded-xl border border-zinc-800 bg-[#121218]">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={acceptedPolicy}
                 onChange={(e) => setAcceptedPolicy(e.target.checked)}
-                className="mt-1 rounded border-slate-700 bg-slate-900 text-indigo-600"
+                className="mt-1 rounded border-zinc-700 bg-zinc-900 text-rose-600"
               />
-              <div className="text-xs text-slate-300 leading-relaxed">
-                <div className="font-semibold text-white flex items-center gap-1.5 mb-0.5">
+              <div className="text-xs text-zinc-300 leading-relaxed">
+                <div className="font-bold text-white flex items-center gap-1.5 mb-0.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>Acceptable Use & Authorization Attestation</span>
+                  <span>Authorized Website Analysis Attestation</span>
                 </div>
-                I confirm that I own this website or have explicit authorization to analyze, archive, or reconstruct its publicly accessible frontend resources. SiteForge AI sanitizes authentication inputs and never harvests credentials or private backend databases.
+                I confirm that I own this website or have explicit authorization to analyze, archive, or reconstruct its publicly accessible frontend resources. Site Forge AI never captures passwords, cookies, session tokens, or private user credentials.
               </div>
             </label>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-700 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="px-4 py-2.5 rounded-xl border border-zinc-700 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-2 shadow-lg transition-colors disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white flex items-center gap-2 shadow-lg shadow-rose-950/50 transition-colors disabled:opacity-50"
             >
               <Play className="w-3.5 h-3.5" />
-              <span>{submitting ? 'Starting Crawler Job...' : 'Start Live Analysis'}</span>
+              <span>{submitting ? 'Initializing Forge Engine...' : 'Analyze Website'}</span>
             </button>
           </div>
         </form>
