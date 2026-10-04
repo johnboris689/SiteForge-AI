@@ -1,56 +1,139 @@
+import dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import * as schema from './schema.ts';
+
+dotenv.config();
 
 declare global {
   var _postgresPool: Pool | undefined;
 }
 
-export const createPool = () => {
-  if (!global._postgresPool) {
-    const connectionString = process.env.DATABASE_URL?.trim();
-    const isRenderExternal = Boolean(
-      connectionString && (connectionString.includes('.render.com') || process.env.RENDER === 'true')
-    );
+function isLocalhostHost(hostOrUrl: string): boolean {
+  const lower = hostOrUrl.toLowerCase().trim();
+  if (lower === 'localhost' || lower === '127.0.0.1' || lower === '::1' || lower === '[::1]') {
+    return true;
+  }
+  try {
+    const parsed = new URL(hostOrUrl);
+    const h = parsed.hostname.toLowerCase();
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
+  } catch {
+    return false;
+  }
+}
 
-    if (connectionString) {
-      global._postgresPool = new Pool({
-        connectionString,
-        ssl: isRenderExternal ? { rejectUnauthorized: false } : undefined,
-        max: 10,
-        connectionTimeoutMillis: 15000,
-      });
-    } else {
-      global._postgresPool = new Pool({
-        host: process.env.SQL_HOST,
-        port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
-        user: process.env.SQL_USER,
-        password: process.env.SQL_PASSWORD,
-        database: process.env.SQL_DB_NAME,
-        max: 10,
-        connectionTimeoutMillis: 15000,
-      });
+export function resolvePoolConfig(): PoolConfig {
+  const connectionString = process.env.DATABASE_URL?.trim();
+  const sqlHost = process.env.SQL_HOST?.trim();
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+  const isRender = process.env.RENDER === 'true';
+
+  if (connectionString) {
+    if (isRender && isLocalhostHost(connectionString)) {
+      throw new Error(
+        'Invalid DATABASE_URL for Render production: DATABASE_URL points to localhost. Configure the Render PostgreSQL connection string before starting Site Forge AI.'
+      );
     }
 
+    const requiresSsl =
+      process.env.DB_SSL === 'true' ||
+      connectionString.includes('sslmode=require') ||
+      connectionString.includes('.render.com');
+
+    return {
+      connectionString,
+      ssl:
+        process.env.DB_SSL === 'false'
+          ? false
+          : requiresSsl
+          ? { rejectUnauthorized: false }
+          : undefined,
+      max: 10,
+      connectionTimeoutMillis: 15000,
+    };
+  }
+
+  // Compatibility with managed Cloud SQL environments (where SQL_HOST, SQL_USER, and SQL_DB_NAME are explicitly injected)
+  const sqlUser = process.env.SQL_USER?.trim();
+  const sqlDbName = process.env.SQL_DB_NAME?.trim();
+  if (sqlHost && sqlUser && sqlDbName && !isRender) {
+    return {
+      host: sqlHost,
+      port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
+      user: sqlUser,
+      password: process.env.SQL_PASSWORD,
+      database: sqlDbName,
+      max: 10,
+      connectionTimeoutMillis: 15000,
+    };
+  }
+
+  // Never silently fall back to localhost:5432 when DATABASE_URL is missing
+  if (isProduction) {
+    throw new Error(
+      'DATABASE_URL is not configured. Configure the Render PostgreSQL connection before starting Site Forge AI.'
+    );
+  }
+
+  throw new Error(
+    'DATABASE_URL is not configured. Set DATABASE_URL=postgresql://username:password@localhost:5432/siteforge in your environment.'
+  );
+}
+
+export const getPool = (): Pool => {
+  if (!global._postgresPool) {
+    const config = resolvePoolConfig();
+    global._postgresPool = new Pool(config);
+
     global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
+      console.error('Unexpected error on idle PostgreSQL pool client:', err.message);
     });
   }
   return global._postgresPool;
 };
 
-const pool = createPool();
+// Initialize pool lazily or via resolved config so imports never silently connect to 127.0.0.1:5432
+const poolProxy = new Proxy({} as Pool, {
+  get(_target, prop, receiver) {
+    const activePool = getPool();
+    const value = Reflect.get(activePool, prop, receiver);
+    return typeof value === 'function' ? value.bind(activePool) : value;
+  },
+});
 
-export const db = drizzle(pool, { schema });
+export const db = drizzle(poolProxy, { schema });
 
 /**
- * Safe, idempotent production schema initializer.
- * Ensures all tables and columns exist on both AI Studio Cloud SQL and Render PostgreSQL
- * without dropping or altering existing user data.
+ * Verifies that PostgreSQL is reachable using the configured DATABASE_URL
+ * and ensures all required tables and columns exist without destroying data.
  */
 export async function ensureDatabaseSchema(): Promise<void> {
-  const client = await pool.connect();
+  const activePool = getPool();
+  let client;
   try {
+    client = await activePool.connect();
+    await client.query('SELECT 1');
+    console.log('Database connection established.');
+  } catch (err: any) {
+    console.error('Database connection failed.');
+    console.error('Check DATABASE_URL and Render PostgreSQL configuration.');
+    throw new Error(
+      `Database connection failed (${err?.code || err?.message || 'unreachable'}). Check DATABASE_URL and Render PostgreSQL configuration.`
+    );
+  }
+
+  try {
+    // First check if the core schema and latest columns already exist (fast & safe for least-privilege runtime users)
+    try {
+      await client.query('SELECT id, github_connected FROM users LIMIT 1');
+      await client.query('SELECT id, github_sync_status FROM projects LIMIT 1');
+      console.log('Database schema verified.');
+      return;
+    } catch {
+      // Tables or columns missing (e.g., fresh Render PostgreSQL instance) — proceed with idempotent DDL initialization
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -299,8 +382,10 @@ export async function ensureDatabaseSchema(): Promise<void> {
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
     `);
-  } catch (err) {
-    console.error('Warning during non-destructive database schema verification:', err);
+    console.log('Database schema verified.');
+  } catch (err: any) {
+    console.error('Database schema verification failed:', err?.message || 'Unknown error');
+    throw new Error(`Database schema verification failed: ${err?.message || 'Unknown error'}`);
   } finally {
     client.release();
   }

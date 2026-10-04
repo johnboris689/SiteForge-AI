@@ -12,6 +12,7 @@ import {
   consumeOAuthState,
   validateRepositoryName,
 } from '../src/server/github.ts';
+import { resolvePoolConfig } from '../src/db/index.ts';
 
 async function runTests() {
   console.log('Running SiteForge AI test suite...');
@@ -78,6 +79,50 @@ async function runTests() {
   assert.equal(validateRepositoryName('invalid repo spaces').valid, false);
   assert.equal(validateRepositoryName('.hidden').valid, false);
   console.log('✓ GitHub repository name validation verified');
+
+  // 7. Production DATABASE_URL & Render PostgreSQL Configuration Validation
+  const origDbUrl = process.env.DATABASE_URL;
+  const origSqlHost = process.env.SQL_HOST;
+  const origRender = process.env.RENDER;
+  const origNodeEnv = process.env.NODE_ENV;
+  try {
+    process.env.RENDER = 'true';
+    process.env.NODE_ENV = 'production';
+    delete process.env.DATABASE_URL;
+    delete process.env.SQL_HOST;
+
+    assert.throws(
+      () => resolvePoolConfig(),
+      /DATABASE_URL is not configured/,
+      'Must fail with clear error instead of falling back to localhost:5432 when DATABASE_URL is missing in production'
+    );
+
+    process.env.DATABASE_URL = 'postgresql://user:pass@127.0.0.1:5432/siteforge';
+    assert.throws(
+      () => resolvePoolConfig(),
+      /Invalid DATABASE_URL for Render production/,
+      'Must reject localhost DATABASE_URL when running on Render'
+    );
+
+    process.env.DATABASE_URL = 'postgresql://siteforge_app:secret@dpg-sample-a/siteforge';
+    const renderInternalCfg = resolvePoolConfig();
+    assert.equal(renderInternalCfg.connectionString, 'postgresql://siteforge_app:secret@dpg-sample-a/siteforge');
+    assert.equal(renderInternalCfg.ssl, undefined, 'Internal Render connection should not force SSL unless requested');
+
+    process.env.DATABASE_URL = 'postgresql://siteforge_app:secret@dpg-sample-a.oregon-postgres.render.com/siteforge';
+    const renderExternalCfg = resolvePoolConfig();
+    assert.deepEqual(renderExternalCfg.ssl, { rejectUnauthorized: false }, 'External Render connection should enable SSL');
+    console.log('✓ Production DATABASE_URL & Render PostgreSQL configuration verified');
+  } finally {
+    if (origDbUrl !== undefined) process.env.DATABASE_URL = origDbUrl;
+    else delete process.env.DATABASE_URL;
+    if (origSqlHost !== undefined) process.env.SQL_HOST = origSqlHost;
+    else delete process.env.SQL_HOST;
+    if (origRender !== undefined) process.env.RENDER = origRender;
+    else delete process.env.RENDER;
+    if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
+    else delete process.env.NODE_ENV;
+  }
 
   console.log('All SiteForge AI unit tests passed!');
 }

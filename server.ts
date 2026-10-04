@@ -1541,11 +1541,13 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SiteForge AI Server listening on http://0.0.0.0:${PORT}`);
+  const HOST = '0.0.0.0';
+  app.listen(PORT, HOST, () => {
+    console.log(`Site Forge AI server listening on ${HOST}:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('Fatal server startup error:', err);
+  console.error('Fatal server startup error:', err?.message || 'Unknown startup error');
+  process.exit(1);
 });
