@@ -82,14 +82,12 @@ async function runTests() {
 
   // 7. Production DATABASE_URL & Render PostgreSQL Configuration Validation
   const origDbUrl = process.env.DATABASE_URL;
-  const origSqlHost = process.env.SQL_HOST;
   const origRender = process.env.RENDER;
   const origNodeEnv = process.env.NODE_ENV;
   try {
     process.env.RENDER = 'true';
     process.env.NODE_ENV = 'production';
     delete process.env.DATABASE_URL;
-    delete process.env.SQL_HOST;
 
     assert.throws(
       () => resolvePoolConfig(),
@@ -101,7 +99,7 @@ async function runTests() {
     assert.throws(
       () => resolvePoolConfig(),
       /Invalid DATABASE_URL for Render production/,
-      'Must reject localhost DATABASE_URL when running on Render'
+      'Must reject localhost DATABASE_URL when running in production'
     );
 
     process.env.DATABASE_URL = 'postgresql://siteforge_app:secret@dpg-sample-a/siteforge';
@@ -116,33 +114,17 @@ async function runTests() {
   } finally {
     if (origDbUrl !== undefined) process.env.DATABASE_URL = origDbUrl;
     else delete process.env.DATABASE_URL;
-    if (origSqlHost !== undefined) process.env.SQL_HOST = origSqlHost;
-    else delete process.env.SQL_HOST;
     if (origRender !== undefined) process.env.RENDER = origRender;
     else delete process.env.RENDER;
     if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
     else delete process.env.NODE_ENV;
   }
 
-  // 8. Live PostgreSQL Connection & Schema Verification via DATABASE_URL
-  if (process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME) {
-    const prevDbUrl = process.env.DATABASE_URL;
-    try {
-      const encodedUser = encodeURIComponent(process.env.SQL_USER);
-      const encodedPass = encodeURIComponent(process.env.SQL_PASSWORD || '');
-      const port = process.env.SQL_PORT || '5432';
-      process.env.DATABASE_URL = `postgresql://${encodedUser}:${encodedPass}@${process.env.SQL_HOST}:${port}/${process.env.SQL_DB_NAME}`;
-      const liveCfg = resolvePoolConfig();
-      assert.ok(liveCfg.connectionString?.startsWith('postgresql://'), 'Should use DATABASE_URL connectionString');
-      await ensureDatabaseSchema();
-      await getPool().end();
-      global._postgresPool = undefined;
-      console.log('✓ Live PostgreSQL connection & schema verification via DATABASE_URL succeeded');
-    } finally {
-      if (prevDbUrl !== undefined) process.env.DATABASE_URL = prevDbUrl;
-      else delete process.env.DATABASE_URL;
-    }
-  }
+  // 8. Live PostgreSQL Connection & Schema Verification
+  await ensureDatabaseSchema();
+  await getPool().end();
+  global._postgresPool = undefined;
+  console.log('✓ Live PostgreSQL connection & schema verification succeeded');
 
   console.log('All SiteForge AI unit tests passed!');
 }

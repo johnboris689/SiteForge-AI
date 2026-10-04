@@ -24,14 +24,11 @@ function isLocalhostHost(hostOrUrl: string): boolean {
 }
 
 export function resolvePoolConfig(): PoolConfig {
-  const connectionString = (
-    process.env.DATABASE_URL ||
-    process.env.INTERNAL_DATABASE_URL ||
-    process.env.POSTGRES_URL
-  )?.trim();
-  const sqlHost = process.env.SQL_HOST?.trim();
-  const isRender = process.env.RENDER === 'true' || Boolean(process.env.RENDER_SERVICE_ID);
-  const isProduction = isRender || (process.env.NODE_ENV === 'production' && !sqlHost);
+  const connectionString = process.env.DATABASE_URL?.trim();
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.RENDER === 'true' ||
+    Boolean(process.env.RENDER_SERVICE_ID);
 
   if (connectionString) {
     if (isProduction && isLocalhostHost(connectionString)) {
@@ -58,22 +55,26 @@ export function resolvePoolConfig(): PoolConfig {
     };
   }
 
-  // Compatibility with managed Cloud SQL / non-localhost database host variables
-  const sqlUser = process.env.SQL_USER?.trim();
-  const sqlDbName = process.env.SQL_DB_NAME?.trim();
-  if (sqlHost && sqlUser && sqlDbName && (!isRender || !isLocalhostHost(sqlHost))) {
+  // In production, never fall back to localhost or development credentials
+  if (isProduction) {
+    throw new Error(
+      'DATABASE_URL is not configured. Configure the Render PostgreSQL connection before starting Site Forge AI.'
+    );
+  }
+
+  // Local AI Studio sandbox development fallback only when NODE_ENV !== 'production'
+  if (process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME) {
     return {
-      host: sqlHost,
+      host: process.env.SQL_HOST.trim(),
       port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
-      user: sqlUser,
+      user: process.env.SQL_USER.trim(),
       password: process.env.SQL_PASSWORD,
-      database: sqlDbName,
+      database: process.env.SQL_DB_NAME.trim(),
       max: 10,
       connectionTimeoutMillis: 15000,
     };
   }
 
-  // Never silently fall back to localhost:5432 when DATABASE_URL is missing
   throw new Error(
     'DATABASE_URL is not configured. Configure the Render PostgreSQL connection before starting Site Forge AI.'
   );

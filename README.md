@@ -31,7 +31,7 @@ This repository includes a production `render.yaml` blueprint configured as a **
 
 | Variable | Description |
 | :--- | :--- |
-| `DATABASE_URL` | PostgreSQL connection string (or `SQL_HOST`, `SQL_USER`, `SQL_PASSWORD`, `SQL_DB_NAME`) |
+| `DATABASE_URL` | PostgreSQL connection string (`postgresql://...`) |
 | `SESSION_SECRET` | Secret used for session hashing and AES-256-GCM GitHub token encryption at rest |
 | `GEMINI_API_KEY` | Google Gemini API key for AI website reconstruction and code refactoring |
 | `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID |
