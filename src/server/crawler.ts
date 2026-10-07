@@ -13,6 +13,7 @@ import {
 } from '../db/schema.ts';
 import { eq } from 'drizzle-orm';
 import { createAuditLog, createNotification } from '../db/repository.ts';
+import { buildProjectZipArchive } from './zip-builder.ts';
 import { CrawlConfig, DEFAULT_CRAWL_CONFIG } from '../shared/types.ts';
 
 export { DEFAULT_CRAWL_CONFIG };
@@ -406,17 +407,18 @@ async function runCrawlWorker(
   const abortController = new AbortController();
   activeJobControllers.set(jobId, abortController);
 
-  const updateJobState = async (patch: Partial<typeof crawlJobs.$inferInsert>) => {
+  const updateJobState = async (patch: Partial<typeof crawlJobs.$inferInsert>, progressPercent?: number) => {
     await db.update(crawlJobs).set(patch).where(eq(crawlJobs.id, jobId));
     broadcastProjectEvent(projectId, {
       type: 'job_progress',
       jobId,
       ...patch,
+      ...(typeof progressPercent === 'number' ? { progressPercent: Math.max(0, Math.min(100, progressPercent)) } : {}),
     });
   };
 
   try {
-    await updateJobState({ status: 'validating', currentStep: 'Validating URL and resolving DNS...' });
+    await updateJobState({ status: 'validating', currentStep: 'Validating URL and resolving DNS...' }, 5);
     await logCrawlEvent(jobId, projectId, 'info', 'validator', `Validating target URL: ${rawTargetUrl}`);
 
     const rootUrl = await validateAndNormalizeUrl(rawTargetUrl);
@@ -455,7 +457,7 @@ async function runCrawlWorker(
       }
     }
 
-    await updateJobState({ status: 'crawling', currentStep: 'Fetching authorized public pages...' });
+    await updateJobState({ status: 'crawling', currentStep: 'Fetching authorized public pages...' }, 10);
 
     const maxPages = config.scope === 'SINGLE_PAGE' ? 1 : Math.min(Math.max(config.maxPages || 6, 1), 20);
     const queue: { url: string; depth: number }[] = [{ url: rootUrl.toString(), depth: 0 }];
@@ -696,7 +698,7 @@ async function runCrawlWorker(
         pagesTotal: totalPlannedPages,
         assetsTotal: discoveredAssetUrls.size,
         currentStep: `Crawled ${pagesProcessed} / ${totalPlannedPages} pages...`,
-      });
+      }, 10 + Math.min(40, Math.round((pagesProcessed / Math.max(totalPlannedPages, 1)) * 40)));
 
       if (config.requestDelayMs > 0) {
         await new Promise((r) => setTimeout(r, Math.min(config.requestDelayMs, 500)));
@@ -709,7 +711,7 @@ async function runCrawlWorker(
     await updateJobState({
       assetsTotal: assetEntries.length,
       currentStep: `Downloading & inspecting ${assetEntries.length} referenced assets...`,
-    });
+    }, 52);
 
     for (const [assetUrl, meta] of assetEntries) {
       if (abortController.signal.aborted) {
@@ -751,11 +753,11 @@ async function runCrawlWorker(
           contentText,
         });
 
-        await logCrawlEvent(jobId, projectId, 'info', 'assets', `Downloaded ${meta.localPath} (${(sizeBytes / 1024).toFixed(1)} KB)`);
+        await logCrawlEvent(jobId, projectId, 'success', 'asset', `Downloaded ${meta.localPath} (${(sizeBytes / 1024).toFixed(1)} KB)`);
         await updateJobState({
           assetsProcessed,
-          currentStep: `Downloaded ${assetsProcessed} / ${assetEntries.length} assets...`,
-        });
+          currentStep: `Downloaded ${assetsProcessed} / ${assetEntries.length} assets — ${meta.localPath}`,
+        }, 52 + Math.min(18, Math.round((assetsProcessed / Math.max(assetEntries.length, 1)) * 18)));
       } catch {
         assetsProcessed++;
         await db.insert(projectAssets).values({
@@ -772,7 +774,7 @@ async function runCrawlWorker(
     }
 
     // Perform Deep Website Analysis
-    await updateJobState({ status: 'analyzing', currentStep: 'Running structural, design, and technology stack analysis...' });
+    await updateJobState({ status: 'analyzing', currentStep: 'Running structural, design, and technology stack analysis...' }, 72);
     await logCrawlEvent(jobId, projectId, 'info', 'analyzer', 'Analyzing CSS architecture, color palette, typography, and framework signatures...');
 
     const crawledPages = await db.select().from(projectPages).where(eq(projectPages.projectId, projectId));
@@ -829,7 +831,7 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
     });
 
     // Package initial structured project representation (Version 1)
-    await updateJobState({ status: 'packaging', currentStep: 'Generating initial source manifest and project files...' });
+    await updateJobState({ status: 'packaging', currentStep: 'Generating initial source manifest and project files...' }, 88);
     await logCrawlEvent(jobId, projectId, 'info', 'packager', 'Building initial structured source tree and preview bundle...');
 
     const homePage = crawledPages[0];
@@ -880,7 +882,11 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
       summaryReportMd
     );
 
-    for (const f of initialFiles) {
+    for (let fileIndex = 0; fileIndex < initialFiles.length; fileIndex++) {
+      const f = initialFiles[fileIndex];
+      const packagePercent = 88 + Math.round(((fileIndex + 1) / Math.max(initialFiles.length, 1)) * 11);
+      await updateJobState({ currentStep: `Packaging ${f.filePath} (${fileIndex + 1}/${initialFiles.length})...` }, packagePercent);
+      await logCrawlEvent(jobId, projectId, 'info', 'package', `Packaging ${f.filePath}`);
       await db.insert(generatedFiles).values({
         projectId,
         versionId: version1.id,
@@ -889,7 +895,13 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         content: f.content,
         sizeBytes: Buffer.byteLength(f.content, 'utf8'),
       });
+      await logCrawlEvent(jobId, projectId, 'success', 'package', `Packaged ${f.filePath}`);
     }
+
+    await updateJobState({ status: 'packaging', currentStep: 'Building and validating final ZIP archive...' }, 99);
+    await logCrawlEvent(jobId, projectId, 'info', 'zip', 'Building final ZIP archive from generated source and extracted assets...');
+    const preparedZip = await buildProjectZipArchive(projectId, userId, 'FULL_ZIP', version1.id, false);
+    await logCrawlEvent(jobId, projectId, 'success', 'zip', `Validated ${preparedZip.fileName} (${(preparedZip.buffer.byteLength / 1024).toFixed(1)} KB, ${preparedZip.fileCount} files)`);
 
     const analysisScore = Math.min(98, 72 + Math.min(crawledPages.length * 3, 15) + Math.min(technologies.length * 3, 11));
 
@@ -912,9 +924,9 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
       pagesProcessed: crawledPages.length,
       pagesTotal: crawledPages.length,
       assetsProcessed,
-      currentStep: 'Complete',
+      currentStep: 'Complete — ZIP source package ready',
       completedAt: new Date(),
-    });
+    }, 100);
 
     await logCrawlEvent(
       jobId,

@@ -8,7 +8,6 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase.ts';
 import { LandingPage } from './components/LandingPage.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
-import { UrlAnalyzerModal } from './components/UrlAnalyzerModal.tsx';
 import { ProjectWorkspace } from './components/ProjectWorkspace.tsx';
 import { AdminPanel } from './components/AdminPanel.tsx';
 import avatarImg from './assets/images/avatar_lead_architect_1791108667216.jpg';
@@ -77,9 +76,8 @@ function App() {
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>('login');
-  const [analyzerModalOpen, setAnalyzerModalOpen] = useState(false);
-  const [analyzerInitialUrl, setAnalyzerInitialUrl] = useState('https://example.com');
   const [pendingAnalyzePayload, setPendingAnalyzePayload] = useState<any | null>(null);
+  const [landingAnalysis, setLandingAnalysis] = useState<{ projectId: number | null; job: any | null; events: any[]; error: string | null }>({ projectId: null, job: null, events: [], error: null });
 
   // Dashboard Data
   const [dashboardData, setDashboardData] = useState<{
@@ -295,22 +293,102 @@ function App() {
       return;
     }
 
+    const { returnToLanding, ...requestPayload } = payload || {};
     const res = await fetch('/api/projects', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${tokenToUse}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
     });
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || 'Failed to create project.');
     }
     await loadUserProfileAndDashboard(tokenToUse);
-    setViewMode('dashboard');
-    setSelectedProjectId(data.project.id);
-    showToast(`Started analysis of ${data.project.originalUrl}`, 'success');
+    if (returnToLanding) {
+      setLandingAnalysis({ projectId: data.project.id, job: data.job || null, events: [], error: null });
+      setSelectedProjectId(null);
+      setViewMode('landing');
+      showToast(`Started analysis of ${data.project.originalUrl}`, 'success');
+    } else {
+      setViewMode('dashboard');
+      setSelectedProjectId(data.project.id);
+      showToast(`Started analysis of ${data.project.originalUrl}`, 'success');
+    }
+  };
+
+  const handleLandingStart = async (payload: any) => {
+    await createAndStartProject({ ...payload, returnToLanding: true });
+  };
+
+  useEffect(() => {
+    if (!landingAnalysis.projectId || !authToken) return;
+    let cancelled = false;
+    const projectId = landingAnalysis.projectId;
+
+    const loadInitial = async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, { headers: { Authorization: `Bearer ${authToken}` } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unable to load analysis progress.');
+        if (cancelled) return;
+        setLandingAnalysis((prev) => ({
+          ...prev,
+          job: data.jobs?.[0] || prev.job,
+          events: Array.isArray(data.events) ? data.events : prev.events,
+        }));
+      } catch (err: any) {
+        if (!cancelled) setLandingAnalysis((prev) => ({ ...prev, error: err.message || 'Unable to load analysis progress.' }));
+      }
+    };
+    loadInitial();
+
+    const es = new EventSource(`/api/projects/${projectId}/stream?token=${encodeURIComponent(authToken)}`);
+    es.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (cancelled) return;
+        if (payload.type === 'crawl_event') {
+          setLandingAnalysis((prev) => ({ ...prev, events: prev.events.some((item) => item.id === payload.id) ? prev.events : [...prev.events, payload] }));
+        } else if (payload.type === 'job_progress') {
+          setLandingAnalysis((prev) => ({ ...prev, job: { ...(prev.job || {}), ...payload }, error: payload.status === 'failed' ? (payload.errorMessage || 'The server-side analysis failed.') : prev.error }));
+        }
+      } catch {
+        // Ignore malformed SSE payloads.
+      }
+    };
+    es.onerror = () => {
+      // EventSource reconnects automatically. Do not show a false failure while the worker continues.
+    };
+    return () => {
+      cancelled = true;
+      es.close();
+    };
+  }, [landingAnalysis.projectId, authToken]);
+
+  const handleLandingDownload = async () => {
+    if (!landingAnalysis.projectId || !authToken || landingAnalysis.job?.status !== 'completed') return;
+    const res = await fetch(`/api/projects/${landingAnalysis.projectId}/download?type=FULL_ZIP`, { headers: { Authorization: `Bearer ${authToken}` } });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'The ZIP could not be downloaded.', 'error');
+      return;
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const fileName = match?.[1] || 'siteforge-export.zip';
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${fileName}`, 'success');
   };
 
   const handleMarkNotificationsRead = async () => {
@@ -507,21 +585,13 @@ function App() {
         onSuccess={handleAuthSuccess}
       />
 
-      <UrlAnalyzerModal
-        isOpen={analyzerModalOpen}
-        initialUrl={analyzerInitialUrl}
-        onClose={() => setAnalyzerModalOpen(false)}
-        onStartProject={(payload) => createAndStartProject(payload)}
-      />
-
       {/* VIEW 1: LANDING PAGE */}
       {viewMode === 'landing' && (
         <LandingPage
           isAuthenticated={Boolean(authToken)}
-          onOpenAnalyzer={(url) => {
-            setAnalyzerInitialUrl(url);
-            setAnalyzerModalOpen(true);
-          }}
+          analysisState={landingAnalysis}
+          onStartAnalysis={handleLandingStart}
+          onDownloadZip={handleLandingDownload}
           onOpenAuth={(mode) => {
             setAuthModalInitialMode(mode);
             setAuthModalOpen(true);
@@ -556,8 +626,8 @@ function App() {
             <div className="p-4">
               <button
                 onClick={() => {
-                  setAnalyzerInitialUrl('https://example.com');
-                  setAnalyzerModalOpen(true);
+                  setSelectedProjectId(null);
+                  setViewMode('landing');
                 }}
                 className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center justify-center gap-2 shadow-sm transition-colors"
               >
@@ -575,7 +645,8 @@ function App() {
                     key={item.id}
                     onClick={() => {
                       if (item.id === 'analyze') {
-                        setAnalyzerModalOpen(true);
+                        setSelectedProjectId(null);
+                        setViewMode('landing');
                         return;
                       }
                       setSelectedProjectId(null);
@@ -703,8 +774,8 @@ function App() {
 
                 <button
                   onClick={() => {
-                    setAnalyzerInitialUrl('https://example.com');
-                    setAnalyzerModalOpen(true);
+                    setSelectedProjectId(null);
+                              setViewMode('landing');
                   }}
                   className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-1.5 whitespace-nowrap"
                 >
@@ -725,7 +796,8 @@ function App() {
                       onClick={() => {
                         setMobileMenuOpen(false);
                         if (item.id === 'analyze') {
-                          setAnalyzerModalOpen(true);
+                          setSelectedProjectId(null);
+                          setViewMode('landing');
                           return;
                         }
                         setSelectedProjectId(null);
@@ -828,7 +900,7 @@ function App() {
                               Enter any authorized public URL to extract its routes, assets, design tokens, and reconstruct it into a modular React application.
                             </p>
                             <button
-                              onClick={() => setAnalyzerModalOpen(true)}
+                              onClick={() => { setSelectedProjectId(null); setViewMode('landing'); }}
                               className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white"
                             >
                               Analyze First Website

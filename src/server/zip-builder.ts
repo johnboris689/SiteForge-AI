@@ -8,7 +8,8 @@ export async function buildProjectZipArchive(
   projectId: number,
   userId: number,
   downloadType: 'FULL_ZIP' | 'SOURCE_ONLY' | 'ASSETS_ONLY' = 'FULL_ZIP',
-  versionId?: number
+  versionId?: number,
+  recordDownload = true
 ): Promise<{ buffer: Buffer; fileName: string; fileCount: number }> {
   const details = await getProjectFullDetails(projectId);
   if (!details) {
@@ -73,28 +74,30 @@ export async function buildProjectZipArchive(
   const suffix = downloadType === 'SOURCE_ONLY' ? '-source' : downloadType === 'ASSETS_ONLY' ? '-assets' : '';
   const fileName = `${safeSlug}${suffix}.zip`;
 
-  await db.insert(downloads).values({
-    projectId,
-    userId,
-    downloadType,
-    fileName,
-    fileSizeBytes: buffer.byteLength,
-  });
+  if (recordDownload) {
+    await db.insert(downloads).values({
+      projectId,
+      userId,
+      downloadType,
+      fileName,
+      fileSizeBytes: buffer.byteLength,
+    });
 
-  await createNotification(
-    userId,
-    'ZIP Archive Ready',
-    `Generated and validated ${fileName} (${(buffer.byteLength / 1024).toFixed(1)} KB, ${fileCount} files).`,
-    'info'
-  );
+    await createNotification(
+      userId,
+      'ZIP Archive Ready',
+      `Generated and validated ${fileName} (${(buffer.byteLength / 1024).toFixed(1)} KB, ${fileCount} files).`,
+      'info'
+    );
 
-  await createAuditLog({
-    userId,
-    projectId,
-    action: `DOWNLOAD_${downloadType}`,
-    status: 'success',
-    details: `Exported ${fileName} (${buffer.byteLength} bytes)`,
-  });
+    await createAuditLog({
+      userId,
+      projectId,
+      action: `DOWNLOAD_${downloadType}`,
+      status: 'success',
+      details: `Exported ${fileName} (${buffer.byteLength} bytes)`,
+    });
+  }
 
   return { buffer, fileName, fileCount };
 }
