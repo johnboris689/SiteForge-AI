@@ -37,9 +37,6 @@ This repository includes a production `render.yaml` blueprint configured as a **
 | `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret |
 | `GITHUB_CALLBACK_URL` | Optional explicit callback URL (`https://<your-domain>/auth/github/callback`) |
-| `APP_URL` | Public application URL used to resolve OAuth callbacks when an explicit callback is not supplied |
-| `OPENAI_COMPATIBLE_ENDPOINT` | Optional OpenAI-compatible chat completion endpoint when `AI_PROVIDER=openai_compatible` |
-| `OPENAI_COMPATIBLE_API_KEY` | Optional server-side API key for the OpenAI-compatible provider |
 
 ---
 
@@ -52,9 +49,3 @@ npm test
 npm run build
 npm run start
 ```
-
-### Product workflow
-
-After authentication the application is intentionally focused on two workspaces: **AI Creation** and **GitHub Publish**. AI Creation uses the real crawler, captured local assets, AI reconstruction/versioning, isolated preview, code review, ZIP export, conversational modifications, and an explicit approval gate. GitHub Publish uses the connected GitHub OAuth identity to list repositories/branches, create repositories, create Git trees/commits, update branches, and return the real repository/commit URLs.
-
-Uploaded source files, images, and ZIP archives are treated as untrusted input. ZIP files are inspected for source text only; uploaded scripts are never executed and uploaded packages are never installed.

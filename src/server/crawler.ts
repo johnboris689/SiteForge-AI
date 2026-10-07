@@ -953,7 +953,7 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
             ],
           },
         ]),
-        previewHtml: buildInitialPreviewHtml(projectName, rootUrl.toString(), homePage?.htmlContent || '', mirrorAssetMap, mirrorPageMap),
+        previewHtml: buildInitialPreviewHtml(projectName, rootUrl.toString(), homePage?.htmlContent || '', colors, fonts, navigationLinks, crawledPages),
       })
       .returning();
 
@@ -1085,16 +1085,112 @@ function buildInitialPreviewHtml(
   projectName: string,
   originalUrl: string,
   rawHtml: string,
-  assetMap: Map<string, string>,
-  pageMap: Map<string, string>
+  colors: { hex: string; occurrences: number }[],
+  fonts: string[],
+  navLinks: { label: string; href: string }[],
+  pages: any[]
 ): string {
-  if (!rawHtml.trim()) {
-    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${projectName.replace(/</g, '&lt;')}</title></head><body><main><h1>Captured page unavailable</h1><p>The target returned no HTML body that could be previewed.</p><p>Source: ${originalUrl.replace(/</g, '&lt;')}</p></main></body></html>`;
-  }
-  // The first preview is the captured target page itself, not a Site Forge template.
-  // Rewrite only resources/pages for which the crawler has a verified local capture.
-  return rewriteHtmlForStaticMirror(rawHtml, originalUrl, assetMap, pageMap);
+  const $ = cheerio.load(rawHtml || '<html><body></body></html>');
+  const h1Text = $('h1').first().text().trim() || projectName;
+  const paragraphs: string[] = [];
+  $('p').each((_, el) => {
+    const txt = $(el).text().trim().replace(/\s+/g, ' ');
+    if (txt.length > 25 && paragraphs.length < 4) {
+      paragraphs.push(txt);
+    }
+  });
+  const headings: string[] = [];
+  $('h2, h3').each((_, el) => {
+    const txt = $(el).text().trim().replace(/\s+/g, ' ');
+    if (txt.length > 3 && headings.length < 6) {
+      headings.push(txt);
+    }
+  });
+
+  const primaryColor = colors.find((c) => c.hex !== '#FFFFFF' && c.hex !== '#000000')?.hex || '#4F46E5';
+  const navItems = navLinks.length > 0 ? navLinks.slice(0, 5) : [{ label: 'Overview', href: '#' }, { label: 'Features', href: '#features' }, { label: 'Pricing', href: '#pricing' }, { label: 'Docs', href: '#docs' }];
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${projectName} — Reconstructed Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: ${fonts[0] ? `'${fonts[0]}', ` : ''}system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+  <header class="border-b border-slate-800/80 bg-slate-950/90 backdrop-blur sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 rounded-full" style="background-color: ${primaryColor}"></div>
+        <span class="font-bold text-lg tracking-tight">${projectName}</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-slate-300">
+        ${navItems.map((n) => `<a href="${n.href}" class="hover:text-white transition-colors">${n.label}</a>`).join('\n        ')}
+      </nav>
+      <div class="flex items-center gap-3">
+        <a href="#routes" class="px-4 py-2 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-90" style="background-color: ${primaryColor}">Get Started</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1">
+    <section class="max-w-6xl mx-auto px-6 py-16 md:py-24">
+      <div class="max-w-3xl">
+        <p class="text-xs font-mono text-indigo-400 mb-3">RECONSTRUCTED FROM ${originalUrl}</p>
+        <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight mb-6">${h1Text}</h1>
+        <p class="text-lg text-slate-300 leading-relaxed mb-8">
+          ${paragraphs[0] || `Clean modular reconstruction extracted from ${originalUrl}. Use the AI Prompt Bar below to customize layout, components, theme palette, or full-stack API bindings.`}
+        </p>
+        <div class="flex flex-wrap gap-4">
+          <button class="px-6 py-3 rounded-lg font-semibold text-sm text-white shadow-lg" style="background-color: ${primaryColor}">Explore Platform</button>
+          <button class="px-6 py-3 rounded-lg font-semibold text-sm border border-slate-700 text-slate-200 hover:bg-slate-900">View Documentation</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="border-t border-slate-900 bg-slate-900/40 py-16">
+      <div class="max-w-6xl mx-auto px-6">
+        <h2 class="text-2xl font-bold text-white mb-8">Extracted Sections & Content Blocks</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          ${(headings.length > 0 ? headings : ['Modular Architecture', 'Responsive Layout System', 'Full-Stack Ready']).map((heading, idx) => `
+          <div class="p-6 rounded-xl border border-slate-800 bg-slate-900/70">
+            <div class="text-xs font-mono text-slate-400 mb-2">0${idx + 1}. SECTION</div>
+            <h3 class="text-lg font-semibold text-white mb-2">${heading}</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">${paragraphs[idx + 1] || 'Extracted semantic component block ready for React state binding and custom styling.'}</p>
+          </div>`).join('')}
+        </div>
+      </div>
+    </section>
+
+    <section id="routes" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+      <h2 class="text-xl font-bold text-white mb-4">Discovered Application Routes (${pages.length})</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        ${pages.map((p) => `
+        <div class="p-4 rounded-lg border border-slate-800 bg-slate-950 flex flex-col justify-between">
+          <div>
+            <div class="text-xs font-mono text-indigo-400 mb-1">${p.pageType}${p.isAuthUi ? ' · Auth UI' : ''}</div>
+            <div class="font-medium text-sm text-white truncate">${p.title}</div>
+          </div>
+          <div class="text-xs font-mono text-slate-500 mt-3 truncate">${p.path}</div>
+        </div>`).join('')}
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-900 py-8 px-6 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <span>${projectName} — Reconstructed by SiteForge AI</span>
+      <span>Source: ${originalUrl}</span>
+    </div>
+  </footer>
+</body>
+</html>`;
 }
+
 
 function rewriteHtmlForStaticMirror(rawHtml: string, sourceUrl: string, assetMap: Map<string, string>, pageMap: Map<string, string>): string {
   const $ = cheerio.load(rawHtml || '<html></html>', { decodeEntities: false });
@@ -1149,14 +1245,8 @@ function buildInitialProjectFiles(
 ): { filePath: string; language: string; content: string }[] {
   const safeSlug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'reconstructed-site';
   const primaryColor = colors[0]?.hex || '#4F46E5';
-  const capturedHomeHtml = rewriteHtmlForStaticMirror(pages[0]?.htmlContent || '', originalUrl, mirrorAssetMap, mirrorPageMap);
 
   const files: { filePath: string; language: string; content: string }[] = [
-    {
-      filePath: 'public/captured/index.html',
-      language: 'html',
-      content: capturedHomeHtml || '<!doctype html><html><body><main><h1>No captured HTML</h1></main></body></html>',
-    },
     {
       filePath: 'package.json',
       language: 'json',
@@ -1236,18 +1326,54 @@ npm run dev
     {
       filePath: 'src/App.tsx',
       language: 'typescript',
-      content: `import React from 'react';
+      content: `import React, { useState } from 'react';
+import { Navbar } from './components/Navbar';
+import { Hero } from './components/Hero';
+import { Footer } from './components/Footer';
 
 export default function App() {
+  const [activeRoute, setActiveRoute] = useState<string>('/');
+
+  const discoveredRoutes = ${JSON.stringify(
+    pages.map((p) => ({ path: p.path, title: p.title, pageType: p.pageType, isAuthUi: p.isAuthUi })),
+    null,
+    2
+  )};
+
   return (
-    <main className="min-h-screen bg-white">
-      <iframe
-        title="Captured website"
-        src="/captured/index.html"
-        className="w-full min-h-screen border-0"
-        sandbox="allow-scripts allow-forms allow-popups allow-modals"
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <Navbar
+        brandName="${projectName.replace(/"/g, '\\"')}"
+        activeRoute={activeRoute}
+        onNavigate={setActiveRoute}
       />
-    </main>
+      <main className="flex-1">
+        <Hero
+          title="${(pages[0]?.title || projectName).replace(/"/g, '\\"')}"
+          sourceUrl="${originalUrl}"
+          primaryColor="${primaryColor}"
+        />
+        <section className="max-w-6xl mx-auto px-6 py-12">
+          <h2 className="text-xl font-semibold mb-6">Discovered Application Routes ({discoveredRoutes.length})</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {discoveredRoutes.map((route) => (
+              <div
+                key={route.path}
+                onClick={() => setActiveRoute(route.path)}
+                className="p-5 rounded-xl border border-slate-800 bg-slate-900/60 hover:border-indigo-500/50 cursor-pointer transition-colors"
+              >
+                <div className="text-xs font-mono text-indigo-400 mb-1">
+                  {route.pageType} {route.isAuthUi ? '· Auth UI' : ''}
+                </div>
+                <div className="font-medium text-white">{route.title}</div>
+                <div className="text-xs font-mono text-slate-400 mt-2">{route.path}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+      <Footer brandName="${projectName.replace(/"/g, '\\"')}" />
+    </div>
   );
 }
 `,
@@ -1324,17 +1450,17 @@ export function Hero({ title, sourceUrl, primaryColor }: HeroProps) {
         <div className="text-xs font-mono text-indigo-400 mb-3">EXTRACTED FROM {sourceUrl}</div>
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6">{title}</h1>
         <p className="text-lg text-slate-300 leading-relaxed mb-8">
-          Captured page content is served from the local public mirror; use the AI workspace for targeted React reconstruction and modifications.
+          Modular frontend component reconstructed from public web structure and asset analysis.
         </p>
         <div className="flex items-center gap-4">
           <button
             style={{ backgroundColor: primaryColor }}
             className="px-6 py-3 rounded-lg text-sm font-semibold text-white shadow-lg"
           >
-            Open Captured Site
+            Primary Action
           </button>
           <button className="px-6 py-3 rounded-lg text-sm font-semibold border border-slate-700 text-slate-200 hover:bg-slate-900">
-            Review Source
+            Inspect Architecture
           </button>
         </div>
       </div>

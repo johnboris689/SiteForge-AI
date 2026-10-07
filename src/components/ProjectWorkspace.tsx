@@ -30,8 +30,6 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
-  Paperclip,
-  X,
 } from 'lucide-react';
 
 interface ProjectWorkspaceProps {
@@ -85,7 +83,6 @@ export function ProjectWorkspace({
   // AI Recreate & Preview state
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiWorking, setAiWorking] = useState(false);
-  const [aiAttachments, setAiAttachments] = useState<any[]>([]);
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [previewKey, setPreviewKey] = useState(0);
 
@@ -112,11 +109,6 @@ export function ProjectWorkspace({
   const [githubProgressStep, setGithubProgressStep] = useState<string | null>(null);
   const [githubError, setGithubError] = useState<string | null>(null);
   const [githubSuccessResult, setGithubSuccessResult] = useState<any | null>(null);
-  const [githubRepositories, setGithubRepositories] = useState<any[]>([]);
-  const [githubBranches, setGithubBranches] = useState<string[]>([]);
-  const [githubSelectedRepo, setGithubSelectedRepo] = useState('');
-  const [githubBranch, setGithubBranch] = useState('');
-  const [approval, setApproval] = useState<any>(null);
 
   const fetchDetails = async () => {
     try {
@@ -126,7 +118,6 @@ export function ProjectWorkspace({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load project.');
       setDetails(data);
-      try { setApproval(JSON.parse(data.project.configJson || '{}').approval || null); } catch { setApproval(null); }
       if (data.events) setLiveEvents(data.events);
       if (data.jobs?.[0]) setActiveJobProgress(data.jobs[0]);
       if (data.files?.length > 0 && !selectedFileId) {
@@ -308,25 +299,6 @@ export function ProjectWorkspace({
     }
   };
 
-  const handleAttachmentPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(event.target.files || []);
-    if (!selected.length) return;
-    if (selected.length + aiAttachments.length > 6) { onNotify('A maximum of 6 attachments is supported.', 'error'); return; }
-    const accepted: any[] = [];
-    for (const file of selected) {
-      if (file.size > 8 * 1024 * 1024) { onNotify(`${file.name} exceeds the 8 MB attachment limit.`, 'error'); continue; }
-      const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || '')); reader.onerror = reject; reader.readAsDataURL(file); });
-      const base64 = dataUrl.split(',')[1] || '';
-      let text: string | undefined;
-      if (file.type.startsWith('text/') || /\.(html?|css|js|jsx|ts|tsx|json|md|txt|svg|xml|ya?ml)$/i.test(file.name)) {
-        text = await file.text();
-      }
-      accepted.push({ name: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size, base64, text });
-    }
-    setAiAttachments(prev => [...prev, ...accepted]);
-    event.target.value = '';
-  };
-
   const handleRunAiReconstruction = async (operationType: 'recreate' | 'modify', customPrompt?: string) => {
     setAiWorking(true);
     try {
@@ -340,14 +312,12 @@ export function ProjectWorkspace({
         body: JSON.stringify({
           prompt: promptToUse,
           operationType,
-          attachments: aiAttachments,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'AI reconstruction failed.');
       setDetails(data.projectDetails);
       setAiPrompt('');
-      setAiAttachments([]);
       setPreviewKey((k) => k + 1);
       onNotify(data.result.summary || 'AI reconstruction completed!', 'success');
     } catch (err: any) {
@@ -562,7 +532,7 @@ export function ProjectWorkspace({
     }
   };
 
-  const openGithubModal = async () => {
+  const openGithubModal = () => {
     const defaultSlug = project.name
       .toLowerCase()
       .replace(/[^a-z0-9-_]+/g, '-')
@@ -579,39 +549,7 @@ export function ProjectWorkspace({
     setGithubError(null);
     setGithubSuccessResult(null);
     setGithubProgressStep(null);
-    try {
-      if (currentUser?.githubConnected) {
-        const rr = await fetch('/api/github/repositories', { headers: { Authorization: `Bearer ${authToken}` } });
-        const rd = await rr.json();
-        if (rr.ok) setGithubRepositories(Array.isArray(rd.repositories) ? rd.repositories : []);
-      }
-    } catch {}
-    const selectedFullName = project.githubRepositoryName ? `${project.githubUsername || currentUser?.githubUsername || ''}/${project.githubRepositoryName}` : '';
-    setGithubSelectedRepo(selectedFullName);
-    setGithubBranch(project.githubDefaultBranch || 'main');
-    if (selectedFullName) loadGithubBranches(selectedFullName);
     setGithubModalOpen(true);
-  };
-
-  const loadGithubBranches = async (fullName: string) => {
-    const [owner, repo] = fullName.split('/');
-    if (!owner || !repo) return;
-    try {
-      const res = await fetch(`/api/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`, { headers: { Authorization: `Bearer ${authToken}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unable to load branches.');
-      setGithubBranches(Array.isArray(data.branches) ? data.branches : []);
-      if (!githubBranch || !data.branches.includes(githubBranch)) setGithubBranch(data.branches[0] || 'main');
-    } catch (err: any) { setGithubError(err.message); }
-  };
-
-  const handleApproveProject = async () => {
-    try {
-      const res = await fetch(`/api/projects/${projectId}/approve`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Approval failed.');
-      setDetails(data.project); setApproval(data.approval); onNotify('Project approved for publishing.', 'success');
-    } catch (err: any) { onNotify(err.message, 'error'); }
   };
 
   const handlePushToGithub = async (e: React.FormEvent) => {
@@ -638,8 +576,6 @@ export function ProjectWorkspace({
           description: githubRepoDesc.trim(),
           isPrivate: githubPrivate,
           commitMessage: githubCommitMsg.trim(),
-          branch: githubBranch.trim() || 'main',
-          existingRepository: !githubCreateNew ? githubSelectedRepo : undefined,
         }),
       });
       const data = await res.json();
@@ -1450,11 +1386,6 @@ export function ProjectWorkspace({
 
             {/* Bottom AI Prompt Box */}
             <div className="pt-4 border-t border-slate-800 space-y-3">
-              {aiAttachments.length > 0 && <div className="flex flex-wrap gap-2">{aiAttachments.map((a, i) => <div key={`${a.name}-${i}`} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-[10px] text-slate-300"><Paperclip size={11}/><span className="max-w-40 truncate">{a.name}</span><button type="button" onClick={() => setAiAttachments(prev => prev.filter((_, n) => n !== i))} className="text-slate-500 hover:text-white"><X size={12}/></button></div>)}</div>}
-              <div className="flex items-center gap-2">
-                <label className="shrink-0 cursor-pointer px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-slate-300 hover:text-white hover:border-slate-600" title="Attach source, image, text, or ZIP"><Paperclip size={14}/><input type="file" multiple className="hidden" accept=".zip,.html,.htm,.css,.js,.jsx,.ts,.tsx,.json,.md,.txt,.svg,.xml,.yml,.yaml,image/*" onChange={handleAttachmentPick}/></label>
-                <span className="text-[10px] text-slate-600">ZIP/source files are parsed as untrusted data; scripts are never executed.</span>
-              </div>
               <textarea
                 rows={3}
                 value={aiPrompt}
@@ -1868,11 +1799,6 @@ export function ProjectWorkspace({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b0d12] px-4 py-3">
-        <div><div className="text-xs font-semibold text-white">Publishing gate</div><div className="text-[11px] text-slate-500 mt-1">Review generated files before allowing a GitHub push.</div></div>
-        {approval?.approved ? <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle2 size={14}/> Approved</span> : <button disabled={project.status !== 'completed' || project.aiStatus !== 'ready'} onClick={handleApproveProject} className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 text-xs font-semibold">Approve project</button>}
-      </div>
-
       {/* GITHUB REPOSITORY CREATION & PUSH MODAL */}
       {githubModalOpen && (
         <div
@@ -1973,7 +1899,7 @@ export function ProjectWorkspace({
             )}
 
             <form onSubmit={handlePushToGithub} className="space-y-4">
-              {(project.githubRepositoryName || githubRepositories.length > 0) && (
+              {project.githubRepositoryName && (
                 <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
                   <button
                     type="button"
@@ -1993,22 +1919,6 @@ export function ProjectWorkspace({
                   >
                     Create New Repository
                   </button>
-                </div>
-              )}
-
-              {!githubCreateNew && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Existing GitHub repository</label>
-                    <select value={githubSelectedRepo} onChange={e => { setGithubSelectedRepo(e.target.value); setGithubBranches([]); loadGithubBranches(e.target.value); }} className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white">
-                      <option value="">Select a repository</option>
-                      {githubRepositories.map((r: any) => <option key={r.fullName} value={r.fullName}>{r.fullName}{r.private ? ' · private' : ''}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">Branch</label>
-                    {githubBranches.length > 0 ? <select value={githubBranch} onChange={e => setGithubBranch(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white">{githubBranches.map(b => <option key={b}>{b}</option>)}</select> : <input value={githubBranch} onChange={e=>setGithubBranch(e.target.value)} placeholder="main" className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white" />}
-                  </div>
                 </div>
               )}
 
@@ -2076,8 +1986,6 @@ export function ProjectWorkspace({
                   </div>
                 </>
               )}
-
-              {githubCreateNew && <div><label className="block text-xs font-medium text-slate-300 mb-1">Initial branch</label><input value={githubBranch} onChange={e=>setGithubBranch(e.target.value)} placeholder="main" className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white" /></div>}
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
