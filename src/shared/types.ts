@@ -27,9 +27,9 @@ export interface CrawlConfig {
 export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   scope: 'SAME_DOMAIN',
   extractionMode: 'DEEP_ANALYSIS',
-  maxPages: 8,
-  maxDepth: 2,
-  maxFileSizeKb: 2048,
+  maxPages: 500,
+  maxDepth: 12,
+  maxFileSizeKb: 25600,
   requestDelayMs: 150,
   sameDomainOnly: true,
   includeSubdomains: false,

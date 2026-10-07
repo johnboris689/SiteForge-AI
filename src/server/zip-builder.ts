@@ -45,6 +45,15 @@ export async function buildProjectZipArchive(
 
   if (downloadType === 'FULL_ZIP' || downloadType === 'ASSETS_ONLY') {
     for (const asset of details.assets) {
+      if (asset.contentBase64) {
+        try {
+          zip.file(asset.localPath, Buffer.from(asset.contentBase64, 'base64'));
+          fileCount++;
+          continue;
+        } catch {
+          // Fall back to text content if a legacy record contains invalid base64.
+        }
+      }
       if (asset.contentText) {
         zip.file(asset.localPath, asset.contentText);
         fileCount++;

@@ -86,6 +86,7 @@ export const projectAssets = pgTable('project_assets', {
   sizeBytes: integer('size_bytes').notNull().default(0),
   statusCode: integer('status_code').notNull().default(200),
   contentText: text('content_text').notNull().default(''),
+  contentBase64: text('content_base64'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

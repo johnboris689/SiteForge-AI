@@ -146,6 +146,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
     try {
       await client.query('SELECT id, github_connected FROM users LIMIT 1');
       await client.query('SELECT id, github_sync_status FROM projects LIMIT 1');
+      await client.query('SELECT id, content_base64 FROM project_assets LIMIT 1');
       console.log('Database schema verified.');
       return;
     } catch {
@@ -257,8 +258,11 @@ export async function ensureDatabaseSchema(): Promise<void> {
         size_bytes INTEGER NOT NULL DEFAULT 0,
         status_code INTEGER NOT NULL DEFAULT 200,
         content_text TEXT NOT NULL DEFAULT '',
+        content_base64 TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE project_assets ADD COLUMN IF NOT EXISTS content_base64 TEXT;
 
       CREATE TABLE IF NOT EXISTS crawl_jobs (
         id SERIAL PRIMARY KEY,

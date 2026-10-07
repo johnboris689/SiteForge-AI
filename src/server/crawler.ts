@@ -459,7 +459,7 @@ async function runCrawlWorker(
 
     await updateJobState({ status: 'crawling', currentStep: 'Fetching authorized public pages...' }, 10);
 
-    const maxPages = config.scope === 'SINGLE_PAGE' ? 1 : Math.min(Math.max(config.maxPages || 6, 1), 20);
+    const maxPages = config.scope === 'SINGLE_PAGE' ? 1 : Math.min(Math.max(config.maxPages || 500, 1), 1000);
     const queue: { url: string; depth: number }[] = [{ url: rootUrl.toString(), depth: 0 }];
     if (config.scope === 'CUSTOM_LIST' && config.customUrls?.length) {
       for (const custom of config.customUrls) {
@@ -475,7 +475,7 @@ async function runCrawlWorker(
     }
 
     const visitedPages = new Set<string>();
-    const discoveredAssetUrls = new Map<string, { type: 'css' | 'js' | 'image' | 'svg' | 'font' | 'other'; localPath: string }>();
+    const discoveredAssetUrls = new Map<string, { type: 'css' | 'js' | 'image' | 'svg' | 'font' | 'json' | 'other'; localPath: string }>();
     const collectedHeaders: Record<string, string> = {};
     const allScripts: string[] = [];
     const allStyles: string[] = [];
@@ -483,6 +483,54 @@ async function runCrawlWorker(
     const navigationLinks: { label: string; href: string }[] = [];
     const componentPatterns = new Set<string>();
     const externalResources = new Set<string>();
+    const mirrorAssetMap = new Map<string, string>();
+    const mirrorPageMap = new Map<string, string>();
+
+    const safeAssetUrl = async (raw: string): Promise<URL> => {
+      const parsed = new URL(raw);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error(`Unsupported resource protocol: ${parsed.protocol}`);
+      }
+      const hostname = parsed.hostname.toLowerCase();
+      if (hostname === rootUrl.hostname || hostname.endsWith(`.${rootUrl.hostname}`)) {
+        return parsed;
+      }
+      // Reuse the same SSRF protections for third-party public assets.
+      await validateAndNormalizeUrl(parsed.toString());
+      return parsed;
+    };
+
+    const safeFileName = (value: string, fallback: string) => {
+      const cleaned = value.split('?')[0].split('#')[0].replace(/^\/+/, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+      return cleaned || fallback;
+    };
+
+    const addAsset = (rawUrl: string, type: 'css' | 'js' | 'image' | 'svg' | 'font' | 'json' | 'other', sourcePageUrl: string, hint = 'asset') => {
+      try {
+        const absolute = new URL(rawUrl, sourcePageUrl);
+        absolute.hash = '';
+        if (!['http:', 'https:'].includes(absolute.protocol)) return;
+        const key = absolute.toString();
+        if (mirrorAssetMap.has(key)) return;
+        const extFromPath = safeFileName(absolute.pathname.split('/').pop() || '', `${hint}-${mirrorAssetMap.size}`);
+        const extFallback = type === 'css' ? '.css' : type === 'js' ? '.js' : type === 'svg' ? '.svg' : type === 'json' ? '.json' : '';
+        const fileName = extFromPath.includes('.') ? extFromPath : `${extFromPath}${extFallback}`;
+        const folder = type === 'css' ? 'assets/css' : type === 'js' ? 'assets/js' : type === 'font' ? 'assets/fonts' : type === 'json' ? 'assets/data' : 'assets/media';
+        const localPath = `public/${folder}/${fileName}`;
+        mirrorAssetMap.set(key, localPath);
+        discoveredAssetUrls.set(key, { type, localPath });
+      } catch {
+        // Ignore malformed resources.
+      }
+    };
+
+    const addSrcSet = (value: string | undefined, sourcePageUrl: string, type: 'image' | 'other') => {
+      if (!value) return;
+      for (const part of value.split(',')) {
+        const candidate = part.trim().split(/\s+/)[0];
+        if (candidate) addAsset(candidate, type, sourcePageUrl, 'image');
+      }
+    };
 
     let totalBytes = 0;
     let pagesProcessed = 0;
@@ -599,70 +647,58 @@ async function runCrawlWorker(
         }
       });
 
-      // Discover CSS stylesheets
-      $('link[rel="stylesheet"][href]').each((idx, el) => {
+      // Discover every publicly referenced resource that can be represented in a static mirror.
+      $('link[href]').each((idx, el) => {
+        const rel = String($(el).attr('rel') || '').toLowerCase();
         const href = $(el).attr('href');
         if (!href) return;
-        try {
-          const abs = new URL(href, current.url);
-          allStyles.push(abs.toString());
-          if (!discoveredAssetUrls.has(abs.toString())) {
-            const fileName = abs.pathname.split('/').pop() || `style-${idx}.css`;
-            discoveredAssetUrls.set(abs.toString(), {
-              type: 'css',
-              localPath: `src/styles/${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
-            });
-          }
-        } catch {
-          // ignore
-        }
+        const type =
+          rel.includes('stylesheet') ? 'css' :
+          rel.includes('modulepreload') || rel.includes('preload') && String($(el).attr('as') || '') === 'script' ? 'js' :
+          rel.includes('manifest') ? 'json' :
+          rel.includes('icon') || rel.includes('apple-touch-icon') ? 'image' :
+          rel.includes('preload') && String($(el).attr('as') || '') === 'font' ? 'font' :
+          'other';
+        addAsset(href, type, current.url, rel || `link-${idx}`);
       });
 
-      // Capture inline <style> blocks
       $('style').each((_, el) => {
         const styleText = $(el).html() || '';
-        if (styleText.trim()) {
-          cssContents.push(styleText);
-        }
+        if (styleText.trim()) cssContents.push(styleText);
       });
 
-      // Discover JS scripts
       $('script[src]').each((idx, el) => {
         const src = $(el).attr('src');
-        if (!src) return;
-        try {
-          const abs = new URL(src, current.url);
-          allScripts.push(abs.toString());
-          if (!discoveredAssetUrls.has(abs.toString())) {
-            const fileName = abs.pathname.split('/').pop() || `bundle-${idx}.js`;
-            discoveredAssetUrls.set(abs.toString(), {
-              type: 'js',
-              localPath: `public/assets/js/${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
-            });
-          }
-        } catch {
-          // ignore
-        }
+        if (src) addAsset(src, 'js', current.url, `script-${idx}`);
       });
 
-      // Discover Images & SVGs
-      $('img[src]').each((idx, el) => {
-        const src = $(el).attr('src');
-        if (!src || src.startsWith('data:')) return;
-        try {
-          const abs = new URL(src, current.url);
-          const isSvg = abs.pathname.toLowerCase().endsWith('.svg');
-          if (!discoveredAssetUrls.has(abs.toString())) {
-            const fileName = abs.pathname.split('/').pop() || `image-${idx}.${isSvg ? 'svg' : 'png'}`;
-            discoveredAssetUrls.set(abs.toString(), {
-              type: isSvg ? 'svg' : 'image',
-              localPath: `public/assets/images/${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
-            });
-          }
-        } catch {
-          // ignore
-        }
+      $('img').each((idx, el) => {
+        addAsset($(el).attr('src') || '', String($(el).attr('type') || '').includes('svg') ? 'svg' : 'image', current.url, `image-${idx}`);
+        addSrcSet($(el).attr('srcset'), current.url, 'image');
+        addSrcSet($(el).attr('data-srcset'), current.url, 'image');
+        addAsset($(el).attr('data-src') || '', 'image', current.url, `lazy-image-${idx}`);
       });
+
+      $('source[src], source[srcset]').each((idx, el) => {
+        const src = $(el).attr('src');
+        if (src) addAsset(src, 'other', current.url, `source-${idx}`);
+        addSrcSet($(el).attr('srcset'), current.url, 'other');
+      });
+
+      $('video[poster], video[src], audio[src], track[src], iframe[src], object[data], embed[src]').each((idx, el) => {
+        const tag = (el as any).tagName?.toLowerCase?.() || 'resource';
+        const raw = $(el).attr('src') || $(el).attr('poster') || $(el).attr('data');
+        if (raw) addAsset(raw, tag === 'iframe' ? 'other' : 'image', current.url, `${tag}-${idx}`);
+      });
+
+      // Parse CSS url(...) and @import references from inline styles and discovered stylesheet text later.
+      const inlineCss = cssContents.join('\n');
+      for (const match of inlineCss.matchAll(/(?:url|src)\\(\\s*['"]?([^'")]+)['"]?\\s*\\)/gi)) {
+        addAsset(match[1], 'other', current.url, 'css-resource');
+      }
+      for (const match of inlineCss.matchAll(/@import\\s+(?:url\\()?['"]?([^'")\\s;]+)['"]?/gi)) {
+        addAsset(match[1], 'css', current.url, 'imported-style');
+      }
 
       // Store page record
       await db.insert(projectPages).values({
@@ -672,7 +708,7 @@ async function runCrawlWorker(
         title: pageTitle,
         pageType,
         statusCode: response.status,
-        htmlContent: $.html().slice(0, 120000),
+        htmlContent: $.html().slice(0, 10 * 1024 * 1024),
         metaJson: JSON.stringify({
           description: metaDescription,
           ogImage,
@@ -705,72 +741,123 @@ async function runCrawlWorker(
       }
     }
 
-    // Download & inspect discovered assets (up to 25 assets to keep crawl fast and responsive)
-    const assetEntries = Array.from(discoveredAssetUrls.entries()).slice(0, 25);
+    // Download every discovered public asset, including binary images/fonts/media.
+    // CSS files are recursively scanned for url(...) and @import resources.
+    const processedAssets = new Set<string>();
     let assetsProcessed = 0;
+
     await updateJobState({
-      assetsTotal: assetEntries.length,
-      currentStep: `Downloading & inspecting ${assetEntries.length} referenced assets...`,
+      assetsTotal: discoveredAssetUrls.size,
+      currentStep: `Downloading ${discoveredAssetUrls.size} discovered assets...`,
     }, 52);
 
-    for (const [assetUrl, meta] of assetEntries) {
-      if (abortController.signal.aborted) {
-        throw new Error('Crawl job cancelled by user.');
-      }
+    while (true) {
+      const pending = Array.from(discoveredAssetUrls.entries()).filter(([url]) => !processedAssets.has(url));
+      if (pending.length === 0) break;
 
-      try {
-        const assetRes = await fetch(assetUrl, {
-          signal: abortController.signal,
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SiteForgeAI/2.0)' },
-        });
-        const mimeType = assetRes.headers.get('content-type') || 'application/octet-stream';
-        let contentText = '';
-        let sizeBytes = Number(assetRes.headers.get('content-length') || 0);
+      for (const [assetUrl, meta] of pending) {
+        if (abortController.signal.aborted) throw new Error('Crawl job cancelled by user.');
+        processedAssets.add(assetUrl);
 
-        if (meta.type === 'css' || meta.type === 'js' || meta.type === 'svg' || mimeType.includes('text') || mimeType.includes('javascript') || mimeType.includes('json')) {
-          const text = await assetRes.text();
-          sizeBytes = Buffer.byteLength(text, 'utf8');
-          contentText = text.slice(0, 60000);
-          if (meta.type === 'css') {
-            cssContents.push(contentText);
+        try {
+          const checked = await safeAssetUrl(assetUrl);
+          const assetRes = await fetch(checked.toString(), {
+            signal: abortController.signal,
+            redirect: 'follow',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; SiteForgeAI/2.0)',
+              Accept: '*/*',
+            },
+          });
+
+          const mimeType = assetRes.headers.get('content-type') || 'application/octet-stream';
+          const arrayBuffer = await assetRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const sizeBytes = buffer.byteLength;
+
+          if (sizeBytes > config.maxFileSizeKb * 1024) {
+            throw new Error(`Skipped because it exceeds the configured ${config.maxFileSizeKb} KB per-file limit.`);
           }
-        } else {
-          const buf = await assetRes.arrayBuffer();
-          sizeBytes = buf.byteLength;
+
+          const looksText =
+            meta.type === 'css' ||
+            meta.type === 'js' ||
+            meta.type === 'svg' ||
+            meta.type === 'json' ||
+            mimeType.startsWith('text/') ||
+            mimeType.includes('javascript') ||
+            mimeType.includes('json') ||
+            mimeType.includes('xml');
+
+          let contentText = '';
+          let contentBase64: string | null = null;
+
+          if (looksText) {
+            contentText = buffer.toString('utf8');
+            if (contentText.length > 10 * 1024 * 1024) {
+              throw new Error('Text resource exceeds the 10 MB safety limit.');
+            }
+            if (meta.type === 'css' || mimeType.includes('css')) {
+              cssContents.push(contentText);
+              // CSS can reference fonts, images, SVGs, imported stylesheets, etc.
+              for (const match of contentText.matchAll(/url\\(\\s*['"]?([^'")]+)['"]?\\s*\\)/gi)) {
+                addAsset(match[1], 'other', assetUrl, 'css-resource');
+              }
+              for (const match of contentText.matchAll(/@import\\s+(?:url\\()?['"]?([^'")\\s;]+)['"]?/gi)) {
+                addAsset(match[1], 'css', assetUrl, 'imported-style');
+              }
+            }
+          } else {
+            contentBase64 = buffer.toString('base64');
+          }
+
+          totalBytes += sizeBytes;
+          assetsProcessed++;
+
+          await db.insert(projectAssets).values({
+            projectId,
+            url: assetUrl,
+            localPath: meta.localPath,
+            assetType: meta.type,
+            mimeType,
+            sizeBytes,
+            statusCode: assetRes.status,
+            contentText,
+            contentBase64,
+          });
+
+          await logCrawlEvent(jobId, projectId, 'success', 'asset', `Downloaded ${meta.localPath} (${(sizeBytes / 1024).toFixed(1)} KB)`);
+          await updateJobState({
+            assetsProcessed,
+            assetsTotal: discoveredAssetUrls.size,
+            currentStep: `Downloaded ${assetsProcessed} / ${discoveredAssetUrls.size} assets — ${meta.localPath}`,
+          }, 52 + Math.min(18, Math.round((assetsProcessed / Math.max(discoveredAssetUrls.size, 1)) * 18)));
+        } catch (assetErr: any) {
+          assetsProcessed++;
+          await db.insert(projectAssets).values({
+            projectId,
+            url: assetUrl,
+            localPath: meta.localPath,
+            assetType: meta.type,
+            mimeType: 'application/octet-stream',
+            sizeBytes: 0,
+            statusCode: 0,
+            contentText: `/* Resource unavailable: ${String(assetErr?.message || 'download failed').slice(0, 300)} */`,
+            contentBase64: null,
+          });
+          await logCrawlEvent(jobId, projectId, 'warn', 'asset', `Could not download ${assetUrl}: ${String(assetErr?.message || 'download failed').slice(0, 300)}`);
         }
-
-        totalBytes += sizeBytes;
-        assetsProcessed++;
-
-        await db.insert(projectAssets).values({
-          projectId,
-          url: assetUrl,
-          localPath: meta.localPath,
-          assetType: meta.type,
-          mimeType,
-          sizeBytes,
-          statusCode: assetRes.status,
-          contentText,
-        });
-
-        await logCrawlEvent(jobId, projectId, 'success', 'asset', `Downloaded ${meta.localPath} (${(sizeBytes / 1024).toFixed(1)} KB)`);
-        await updateJobState({
-          assetsProcessed,
-          currentStep: `Downloaded ${assetsProcessed} / ${assetEntries.length} assets — ${meta.localPath}`,
-        }, 52 + Math.min(18, Math.round((assetsProcessed / Math.max(assetEntries.length, 1)) * 18)));
-      } catch {
-        assetsProcessed++;
-        await db.insert(projectAssets).values({
-          projectId,
-          url: assetUrl,
-          localPath: meta.localPath,
-          assetType: meta.type,
-          mimeType: 'application/octet-stream',
-          sizeBytes: 0,
-          statusCode: 0,
-          contentText: '/* External resource unreachable or blocked by CORS */',
-        });
       }
+    }
+
+    // Build a URL -> local file map for the static mirror.
+    for (const [url, meta] of discoveredAssetUrls.entries()) mirrorAssetMap.set(url, meta.localPath);
+    for (const page of await db.select().from(projectPages).where(eq(projectPages.projectId, projectId))) {
+      try {
+        const normalized = new URL(page.url);
+        const relativePath = normalized.pathname === '/' ? 'index.html' : `${normalized.pathname.replace(/^\//, '').replace(/\/$/, '') || 'index'}.html`;
+        mirrorPageMap.set(page.url.replace(/\/$/, ''), `public/${relativePath}`);
+      } catch {}
     }
 
     // Perform Deep Website Analysis
@@ -879,7 +966,9 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
       colors,
       fonts,
       navigationLinks,
-      summaryReportMd
+      summaryReportMd,
+      mirrorAssetMap,
+      mirrorPageMap
     );
 
     for (let fileIndex = 0; fileIndex < initialFiles.length; fileIndex++) {
@@ -1102,6 +1191,45 @@ function buildInitialPreviewHtml(
 </html>`;
 }
 
+
+function rewriteHtmlForStaticMirror(rawHtml: string, sourceUrl: string, assetMap: Map<string, string>, pageMap: Map<string, string>): string {
+  const $ = cheerio.load(rawHtml || '<html></html>', { decodeEntities: false });
+  const toLocal = (raw: string | undefined) => {
+    if (!raw || raw.startsWith('#') || raw.startsWith('data:') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('javascript:')) return raw;
+    try {
+      const absolute = new URL(raw, sourceUrl);
+      absolute.hash = '';
+      const key = absolute.toString();
+      if (assetMap.has(key)) return `/${assetMap.get(key)!.replace(/^public\//, '')}`;
+      const pageKey = key.replace(/\/$/, '');
+      if (pageMap.has(pageKey)) return `/${pageMap.get(pageKey)!.replace(/^public\//, '')}`;
+    } catch {}
+    return raw;
+  };
+
+  $('link[href], script[src], img[src], source[src], video[src], audio[src], track[src], iframe[src], object[data], embed[src]').each((_, el) => {
+    for (const attr of ['href', 'src', 'data']) {
+      const value = $(el).attr(attr);
+      if (value) $(el).attr(attr, toLocal(value) || value);
+    }
+  });
+  $('img[srcset], source[srcset]').each((_, el) => {
+    const value = $(el).attr('srcset');
+    if (!value) return;
+    const rewritten = value.split(',').map(part => {
+      const pieces = part.trim().split(/\s+/);
+      pieces[0] = toLocal(pieces[0]) || pieces[0];
+      return pieces.join(' ');
+    }).join(', ');
+    $(el).attr('srcset', rewritten);
+  });
+  $('style').each((_, el) => {
+    const css = $(el).html() || '';
+    $(el).html(css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (_m, q, u) => `url("${toLocal(u) || u}")`));
+  });
+  return $.html();
+}
+
 function buildInitialProjectFiles(
   projectName: string,
   originalUrl: string,
@@ -1111,7 +1239,9 @@ function buildInitialProjectFiles(
   colors: { hex: string; occurrences: number }[],
   fonts: string[],
   navLinks: { label: string; href: string }[],
-  summaryReportMd: string
+  summaryReportMd: string,
+  mirrorAssetMap: Map<string, string> = new Map(),
+  mirrorPageMap: Map<string, string> = new Map()
 ): { filePath: string; language: string; content: string }[] {
   const safeSlug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'reconstructed-site';
   const primaryColor = colors[0]?.hex || '#4F46E5';
@@ -1398,7 +1528,7 @@ CREATE TABLE IF NOT EXISTS records (
     files.push({
       filePath: `public/snapshots/${cleanName || `page_${idx}.html`}`,
       language: 'html',
-      content: p.htmlContent || '',
+      content: rewriteHtmlForStaticMirror(p.htmlContent || '', p.url, mirrorAssetMap, mirrorPageMap),
     });
   });
 
