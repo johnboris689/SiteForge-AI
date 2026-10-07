@@ -562,7 +562,7 @@ export function ProjectWorkspace({
     }
   };
 
-  const openGithubModal = () => {
+  const openGithubModal = async () => {
     const defaultSlug = project.name
       .toLowerCase()
       .replace(/[^a-z0-9-_]+/g, '-')
