@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import JSZip from 'jszip';
 import { createServer as createViteServer } from 'vite';
 import { db, ensureDatabaseSchema } from './src/db/index.ts';
 import {
@@ -50,6 +51,7 @@ import {
 } from './src/server/crawler.ts';
 import {
   runAIProjectReconstruction,
+  type AIInputAttachment,
   getActiveAIProvider,
 } from './src/server/ai-provider.ts';
 import { buildProjectZipArchive } from './src/server/zip-builder.ts';
@@ -64,6 +66,8 @@ import {
   createGithubRepositoryForUser,
   pushProjectToGithubRepository,
   disconnectGithubForUser,
+  listGithubRepositoriesForUser,
+  listGithubBranchesForUser,
 } from './src/server/github.ts';
 
 dotenv.config();
@@ -949,17 +953,52 @@ async function startServer() {
   app.post('/api/projects/:id/recreate', requireAuth, async (req: AuthRequest, res) => {
     try {
       const projectId = Number(req.params.id);
-      const { prompt, operationType } = req.body;
+      const { prompt, operationType, attachments = [] } = req.body;
       const authorized = await getProjectByIdForUser(projectId, req.authUser!.id, true);
       if (!authorized) {
         return res.status(404).json({ error: 'Project not found.' });
+      }
+
+      const safeAttachments: AIInputAttachment[] = [];
+      if (Array.isArray(attachments)) {
+        if (attachments.length > 6) throw new Error('A maximum of 6 attachments is supported per AI request.');
+        for (const item of attachments) {
+          const name = String(item?.name || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180);
+          const mimeType = String(item?.mimeType || 'application/octet-stream').slice(0, 120);
+          const base64 = String(item?.base64 || '');
+          const sizeBytes = Number(item?.sizeBytes || 0);
+          if (!base64 || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > 8 * 1024 * 1024) throw new Error(`Attachment ${name} exceeds the 8 MB per-file limit.`);
+          if (mimeType.startsWith('image/')) {
+            safeAttachments.push({ name, mimeType, base64, sizeBytes });
+            continue;
+          }
+          const raw = Buffer.from(base64, 'base64');
+          if (mimeType.includes('zip') || name.toLowerCase().endsWith('.zip')) {
+            const zip = await JSZip.loadAsync(raw, { createFolders: false });
+            const chunks: string[] = [];
+            for (const [entryName, entry] of Object.entries(zip.files)) {
+              if (entry.dir || chunks.length >= 80) continue;
+              const lower = entryName.toLowerCase();
+              if (!/\.(html?|css|js|jsx|ts|tsx|json|md|txt|svg|xml|ya?ml)$/.test(lower)) continue;
+              const text = await entry.async('text');
+              chunks.push(`--- ${entryName} ---\n${text.slice(0, 12000)}`);
+            }
+            safeAttachments.push({ name, mimeType: 'application/zip', text: chunks.join('\n').slice(0, 180000), sizeBytes });
+            continue;
+          }
+          const lower = name.toLowerCase();
+          if (/\.(html?|css|js|jsx|ts|tsx|json|md|txt|svg|xml|ya?ml)$/.test(lower) || mimeType.startsWith('text/')) {
+            safeAttachments.push({ name, mimeType, text: raw.toString('utf8').slice(0, 60000), sizeBytes });
+          }
+        }
       }
 
       const result = await runAIProjectReconstruction(
         projectId,
         req.authUser!.id,
         prompt || '',
-        operationType === 'modify' ? 'modify' : 'recreate'
+        operationType === 'modify' ? 'modify' : 'recreate',
+        safeAttachments
       );
       const updatedDetails = await getProjectFullDetails(projectId);
       res.json({
@@ -1296,6 +1335,20 @@ async function startServer() {
     }
   });
 
+  app.post('/api/projects/:id/approve', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const isAdmin = req.authUser!.role === 'ADMIN' || req.authUser!.role === 'SUPER_ADMIN';
+      const project = await getProjectByIdForUser(projectId, req.authUser!.id, isAdmin);
+      if (!project) return res.status(404).json({ error: 'Project not found.' });
+      if (project.status !== 'completed' || project.aiStatus !== 'ready') return res.status(400).json({ error: 'The project must finish crawling and AI generation before approval.' });
+      let config: any = {}; try { config = JSON.parse(project.configJson || '{}'); } catch {}
+      config.approval = { approved: true, approvedAt: new Date().toISOString(), approvedBy: req.authUser!.id };
+      await db.update(projects).set({ configJson: JSON.stringify(config) }).where(eq(projects.id, projectId));
+      res.json({ success: true, approval: config.approval, project: await getProjectFullDetails(projectId) });
+    } catch (error: any) { res.status(500).json({ error: error.message || 'Failed to approve project.' }); }
+  });
+
   app.get('/api/projects/:id/download', requireAuth, async (req: AuthRequest, res) => {
     try {
       const projectId = Number(req.params.id);
@@ -1337,6 +1390,21 @@ async function startServer() {
   // ============================================================================
   // GITHUB REPOSITORY CREATION & PROJECT PUSH ROUTES
   // ============================================================================
+  app.get('/api/github/repositories', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.authUser!.githubConnected) return res.status(400).json({ error: 'GitHub account is not connected.' });
+      res.json({ repositories: await listGithubRepositoriesForUser(req.authUser!.id) });
+    } catch (error: any) { res.status(400).json({ error: error.message || 'Failed to list GitHub repositories.' }); }
+  });
+
+  app.get('/api/github/repositories/:owner/:repo/branches', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.authUser!.githubConnected) return res.status(400).json({ error: 'GitHub account is not connected.' });
+      const branches = await listGithubBranchesForUser(req.authUser!.id, req.params.owner, req.params.repo);
+      res.json({ branches });
+    } catch (error: any) { res.status(400).json({ error: error.message || 'Failed to list GitHub branches.' }); }
+  });
+
   app.post('/api/projects/:id/github/create-repo', requireAuth, async (req: AuthRequest, res) => {
     try {
       const projectId = Number(req.params.id);
@@ -1384,13 +1452,14 @@ async function startServer() {
         return res.status(404).json({ error: 'Project not found or access denied.' });
       }
 
-      const { createNewRepo, repoName, description, isPrivate, commitMessage } = req.body;
+      const { createNewRepo, repoName, description, isPrivate, commitMessage, branch } = req.body;
       const pushResult = await pushProjectToGithubRepository(projectId, req.authUser!.id, {
         createNewRepo: Boolean(createNewRepo),
         repoName,
         description,
         isPrivate: Boolean(isPrivate),
         commitMessage,
+        branch,
       });
 
       const updatedDetails = await getProjectFullDetails(projectId);

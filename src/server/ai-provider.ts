@@ -27,6 +27,8 @@ export interface DatabaseTableSpec {
   }[];
 }
 
+export interface AIInputAttachment { name: string; mimeType: string; text?: string; base64?: string; sizeBytes?: number; }
+
 export interface AIReconstructionResult {
   versionLabel: string;
   summary: string;
@@ -39,7 +41,7 @@ export interface AIReconstructionResult {
 export interface AIProvider {
   name: string;
   model: string;
-  generateReconstruction(prompt: string, contextSummary: string): Promise<AIReconstructionResult>;
+  generateReconstruction(prompt: string, contextSummary: string, attachments?: AIInputAttachment[]): Promise<AIReconstructionResult>;
   generateSingleFileAction(
     action: 'regenerate' | 'refactor' | 'explain',
     filePath: string,
@@ -81,11 +83,9 @@ class GeminiAIProvider implements AIProvider {
     });
   }
 
-  async generateReconstruction(prompt: string, contextSummary: string): Promise<AIReconstructionResult> {
+  async generateReconstruction(prompt: string, contextSummary: string, attachments: AIInputAttachment[] = []): Promise<AIReconstructionResult> {
     const ai = this.getClient();
-    const response = await ai.models.generateContent({
-      model: this.model,
-      contents: `You are the SiteForge AI Reconstruction Engine.
+    const textPrompt = `You are the SiteForge AI Reconstruction Engine.
 Analyze the following extracted website data and user instructions, and generate a clean, maintainable, modular full-stack React + TypeScript + Tailwind CSS application along with a complete interactive standalone HTML preview (using Tailwind CDN so it renders immediately inside a sandboxed iframe).
 
 WEBSITE ANALYSIS CONTEXT:
@@ -98,7 +98,20 @@ REQUIREMENTS:
 1. Prioritize visual fidelity, responsive layout (desktop/tablet/mobile), reusable components (Navbar, Hero, Sidebar/FeatureGrid, Forms, Footer), accessibility, and clean architecture.
 2. Provide a complete, self-contained, interactive \`previewHtml\` document (using <script src="https://cdn.tailwindcss.com"></script> and interactive vanilla JS/state toggles for tabs/modals/drawers) that visually and functionally represents the rebuilt application.
 3. Provide modular project source files in \`files\` (including \`src/App.tsx\`, \`src/components/Navbar.tsx\`, \`src/components/Hero.tsx\`, \`src/components/Dashboard.tsx\`, \`src/api/routes.ts\`, \`migrations/001_initial.sql\`, \`README.md\`, \`.env.example\`, \`package.json\`).
-4. Provide a relational PostgreSQL database schema in \`databaseTables\`.`,
+4. Provide a relational PostgreSQL database schema in \`databaseTables\`.`;
+    const parts: any[] = [{ text: textPrompt }];
+    for (const attachment of attachments) {
+      if (attachment.mimeType.startsWith('image/') && attachment.base64) {
+        parts.push({ text: `\nAttached image: ${attachment.name} (${attachment.sizeBytes || 0} bytes). Use this image as visual reference.` });
+        parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.base64 } });
+      } else if (attachment.text) {
+        parts.push({ text: `\nAttached source file ${attachment.name}:\n${attachment.text.slice(0, 50000)}` });
+      }
+    }
+
+    const response = await ai.models.generateContent({
+      model: this.model,
+      contents: [{ role: 'user', parts }],
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -284,8 +297,9 @@ class OpenAICompatibleProvider implements AIProvider {
     }
   }
 
-  async generateReconstruction(prompt: string, contextSummary: string): Promise<AIReconstructionResult> {
+  async generateReconstruction(prompt: string, contextSummary: string, attachments: AIInputAttachment[] = []): Promise<AIReconstructionResult> {
     this.ensureConfigured();
+    const attachmentText = attachments.map(a => a.text ? `\nAttached ${a.name}:\n${a.text.slice(0, 50000)}` : `\nAttached binary/image: ${a.name} (${a.mimeType}, ${a.sizeBytes || 0} bytes)`).join('');
     const res = await fetch(this.endpoint, {
       method: 'POST',
       headers: {
@@ -300,7 +314,7 @@ class OpenAICompatibleProvider implements AIProvider {
             role: 'system',
             content: 'Return JSON with keys: versionLabel, summary, framework, previewHtml, files (array of {filePath, language, content}), databaseTables (array of {tableName, description, columns}).',
           },
-          { role: 'user', content: `Context:\n${contextSummary}\n\nInstructions:\n${prompt}` },
+          { role: 'user', content: `Context:\n${contextSummary}\n\nInstructions:\n${prompt}\n${attachmentText}` },
         ],
       }),
     });
@@ -378,7 +392,8 @@ export async function runAIProjectReconstruction(
   projectId: number,
   userId: number,
   userInstructions: string,
-  operationType: 'recreate' | 'modify' = 'recreate'
+  operationType: 'recreate' | 'modify' = 'recreate',
+  attachments: AIInputAttachment[] = []
 ) {
   const startTime = Date.now();
   const details = await getProjectFullDetails(projectId);
@@ -427,6 +442,8 @@ export async function runAIProjectReconstruction(
         existingVersionNumber: details.latestVersion?.versionNumber || 1,
         existingFilesList: details.files.map((f) => f.filePath),
         currentPreviewSnippet: details.latestVersion?.previewHtml?.slice(0, 2500) || '',
+        discoveredAssets: details.assets.slice(0, 80).map(a => ({ url: a.url, localPath: a.localPath, assetType: a.assetType, mimeType: a.mimeType, sizeBytes: a.sizeBytes, contentSnippet: (a.contentText || '').slice(0, 1200) })),
+        attachmentNames: attachments.map(a => ({ name: a.name, mimeType: a.mimeType, sizeBytes: a.sizeBytes })),
       },
       null,
       2
@@ -436,7 +453,24 @@ export async function runAIProjectReconstruction(
       userInstructions.trim() ||
       'Reconstruct this website as a modern, responsive, accessible full-stack React + TypeScript + Tailwind CSS application with modular components, interactive navigation, clean typography, and PostgreSQL schema.';
 
-    const result = await provider.generateReconstruction(effectivePrompt, contextSummary);
+    const result = await provider.generateReconstruction(effectivePrompt, contextSummary, attachments);
+    if (!result || !Array.isArray(result.files) || result.files.length === 0) {
+      throw new Error('AI provider returned no generated source files.');
+    }
+    if (typeof result.previewHtml !== 'string' || !result.previewHtml.toLowerCase().includes('<html')) {
+      throw new Error('AI provider returned an invalid preview document.');
+    }
+    for (const file of result.files) {
+      if (!file?.filePath || file.filePath.includes('\\') || file.filePath.split('/').some(part => part === '..') || file.filePath.startsWith('/')) {
+        throw new Error('AI provider returned an unsafe generated file path.');
+      }
+      if (typeof file.content !== 'string' || file.content.length === 0) {
+        throw new Error(`AI provider returned empty content for ${file.filePath || 'a generated file'}.`);
+      }
+      if (/BEGIN (RSA|OPENSSH|PRIVATE KEY)|ghp_[A-Za-z0-9_]+|AIza[0-9A-Za-z_-]{20,}/.test(file.content)) {
+        throw new Error(`Generated file ${file.filePath} appears to contain a credential or API key; generation was rejected.`);
+      }
+    }
 
     const nextVersionNumber = (details.versions[0]?.versionNumber || 0) + 1;
     const [newVersion] = await db

@@ -258,6 +258,30 @@ export interface GithubRepoInfo {
   ownerLogin: string;
 }
 
+
+export async function listGithubRepositoriesForUser(userId: number): Promise<GithubRepoInfo[]> {
+  const { token } = await getUserDecryptedGithubToken(userId);
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'SiteForge-AI-Platform', 'X-GitHub-Api-Version': '2022-11-28' };
+  const out: GithubRepoInfo[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const res = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated`, { headers });
+    if (!res.ok) throw new Error(`GitHub API returned HTTP ${res.status} while listing repositories.`);
+    const rows: any[] = await res.json();
+    for (const repo of rows) out.push({ id: String(repo.id), name: repo.name, fullName: repo.full_name, htmlUrl: repo.html_url, defaultBranch: repo.default_branch || 'main', private: Boolean(repo.private), ownerLogin: repo.owner?.login || '' });
+    if (rows.length < 100) break;
+  }
+  return out;
+}
+
+export async function listGithubBranchesForUser(userId: number, owner: string, repo: string): Promise<string[]> {
+  const { token } = await getUserDecryptedGithubToken(userId);
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'SiteForge-AI-Platform', 'X-GitHub-Api-Version': '2022-11-28' };
+  const res = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches?per_page=100`, { headers });
+  if (!res.ok) throw new Error(`GitHub API returned HTTP ${res.status} while listing branches.`);
+  const rows: any[] = await res.json();
+  return rows.map(r => r.name).filter(Boolean);
+}
+
 export async function createGithubRepositoryForUser(
   userId: number,
   options: {
@@ -339,6 +363,8 @@ export async function pushProjectToGithubRepository(
     description?: string;
     isPrivate?: boolean;
     commitMessage?: string;
+    branch?: string;
+    existingRepository?: string;
   }
 ): Promise<{
   repositoryUrl: string;
@@ -413,7 +439,21 @@ export async function pushProjectToGithubRepository(
     let repoName = details.project.githubRepositoryName || '';
     let repoUrl = details.project.githubRepositoryUrl || '';
     let repoId = details.project.githubRepositoryId || '';
-    let defaultBranch = details.project.githubDefaultBranch || 'main';
+    let defaultBranch = (options.branch || details.project.githubDefaultBranch || 'main').trim() || 'main';
+
+    if (!options.createNewRepo && options.existingRepository) {
+      const [selectedOwner, selectedRepo] = String(options.existingRepository).split('/');
+      if (!selectedOwner || !selectedRepo || selectedOwner.toLowerCase() !== username.toLowerCase()) {
+        throw new Error('Select a repository owned by the authenticated GitHub account.');
+      }
+      owner = selectedOwner;
+      repoName = selectedRepo;
+      const repoCheck = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`, { headers });
+      if (!repoCheck.ok) throw new Error(`GitHub repository ${owner}/${repoName} is not accessible with the connected account.`);
+      const repoData: any = await repoCheck.json();
+      repoUrl = repoData.html_url; repoId = String(repoData.id);
+      if (!options.branch) defaultBranch = repoData.default_branch || 'main';
+    }
 
     if (options.createNewRepo || !repoName) {
       const targetName = (options.repoName || details.project.name.toLowerCase().replace(/[^a-z0-9-_]+/g, '-')).trim();
@@ -428,6 +468,14 @@ export async function pushProjectToGithubRepository(
       repoUrl = createdRepo.htmlUrl;
       repoId = createdRepo.id;
       defaultBranch = createdRepo.defaultBranch || 'main';
+      if (options.branch && options.branch.trim() && options.branch.trim() !== defaultBranch) {
+        const sourceRef = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/ref/heads/${encodeURIComponent(defaultBranch)}`, { headers });
+        if (!sourceRef.ok) throw new Error(`Unable to read the default GitHub branch ${defaultBranch}.`);
+        const sourceData: any = await sourceRef.json();
+        const createBranchRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/refs`, { method: 'POST', headers, body: JSON.stringify({ ref: `refs/heads/${options.branch.trim()}`, sha: sourceData.object.sha }) });
+        if (!createBranchRes.ok && createBranchRes.status !== 422) { const e: any = await createBranchRes.json().catch(() => ({})); throw new Error(e.message || `Failed to create branch ${options.branch.trim()}.`); }
+        defaultBranch = options.branch.trim();
+      }
     }
 
     emitProgress('comparing', 'Comparing files and resolving branch reference...');

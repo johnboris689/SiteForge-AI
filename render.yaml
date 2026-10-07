@@ -23,6 +23,12 @@ services:
         value: gemini-3.8-flash
       - key: GEMINI_API_KEY
         sync: false
+      - key: OPENAI_COMPATIBLE_ENDPOINT
+        sync: false
+      - key: OPENAI_COMPATIBLE_API_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
       - key: GITHUB_CLIENT_ID
         sync: false
       - key: GITHUB_CLIENT_SECRET
