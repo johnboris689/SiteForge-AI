@@ -693,10 +693,10 @@ async function runCrawlWorker(
 
       // Parse CSS url(...) and @import references from inline styles and discovered stylesheet text later.
       const inlineCss = cssContents.join('\n');
-      for (const match of inlineCss.matchAll(/(?:url|src)\\(\\s*['"]?([^'")]+)['"]?\\s*\\)/gi)) {
+      for (const match of inlineCss.matchAll(/(?:url|src)\(\s*['"]?([^'")]+?)['"]?\s*\)/gi)) {
         addAsset(match[1], 'other', current.url, 'css-resource');
       }
-      for (const match of inlineCss.matchAll(/@import\\s+(?:url\\()?['"]?([^'")\\s;]+)['"]?/gi)) {
+      for (const match of inlineCss.matchAll(/@import\s+(?:url\(\s*)?['"]?([^'")\s;]+)['"]?\s*\)?/gi)) {
         addAsset(match[1], 'css', current.url, 'imported-style');
       }
 
@@ -800,10 +800,10 @@ async function runCrawlWorker(
             if (meta.type === 'css' || mimeType.includes('css')) {
               cssContents.push(contentText);
               // CSS can reference fonts, images, SVGs, imported stylesheets, etc.
-              for (const match of contentText.matchAll(/url\\(\\s*['"]?([^'")]+)['"]?\\s*\\)/gi)) {
+              for (const match of contentText.matchAll(/url\(\s*['"]?([^'")]+?)['"]?\s*\)/gi)) {
                 addAsset(match[1], 'other', assetUrl, 'css-resource');
               }
-              for (const match of contentText.matchAll(/@import\\s+(?:url\\()?['"]?([^'")\\s;]+)['"]?/gi)) {
+              for (const match of contentText.matchAll(/@import\s+(?:url\(\s*)?['"]?([^'")\s;]+)['"]?\s*\)?/gi)) {
                 addAsset(match[1], 'css', assetUrl, 'imported-style');
               }
             }
