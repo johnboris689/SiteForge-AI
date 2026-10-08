@@ -86,7 +86,7 @@ class GeminiAIProvider implements AIProvider {
     const response = await ai.models.generateContent({
       model: this.model,
       contents: `You are the SiteForge AI Reconstruction Engine.
-Analyze the following extracted website data and user instructions, and generate a clean, maintainable, modular full-stack React + TypeScript + Tailwind CSS application along with a complete interactive standalone HTML preview (using Tailwind CDN so it renders immediately inside a sandboxed iframe).
+Analyze the extracted website data and user instructions below and generate a clean, maintainable, modular full-stack React + TypeScript + Tailwind CSS application plus a complete interactive standalone HTML preview.
 
 WEBSITE ANALYSIS CONTEXT:
 ${contextSummary}
@@ -95,14 +95,20 @@ USER INSTRUCTIONS:
 ${prompt}
 
 REQUIREMENTS:
-1. First perform a source-understanding pass: infer the site's information architecture, route behavior, components, visual system, forms, client-side interactions, data flows, and observable server/backend requirements from the supplied capture.
-2. Prioritize high visual and functional fidelity. Do not create a generic SaaS mockup when captured source is available. Reuse the extracted HTML structure, CSS, JavaScript behavior, assets, routes, typography, colors, and interaction patterns as the primary evidence.
-3. Reproduce responsive behavior for desktop/tablet/mobile and implement a backend architecture that matches observable workflows (forms, actions, API calls, and persistence needs) as closely as can be inferred from public evidence. Never claim access to private server code that was not captured.
-4. Never reject the capture merely because some resources were unavailable. Preserve unavailable resources as documented placeholders and continue reconstructing everything that was successfully captured.
-5. Provide a complete, self-contained, interactive \`previewHtml\` document (using <script src="https://cdn.tailwindcss.com"></script> and interactive vanilla JS/state toggles for tabs/modals/drawers) that visually and functionally represents the rebuilt application.
-6. Provide modular project source files in \`files\` (including \`src/App.tsx\`, \`src/components/Navbar.tsx\`, \`src/components/Hero.tsx\`, backend/API routes, database migrations, \`README.md\`, \`.env.example\`, and \`package.json\`).
-7. Provide a relational PostgreSQL database schema in \`databaseTables\` that supports the observable application behavior rather than a placeholder schema.
-8. Do not omit captured routes, source snapshots, assets, or important interactions just to shorten the answer. The final project should remain complete and runnable.`,
+1. First perform a source-understanding pass over the captured HTML, CSS, JavaScript, assets, routes, typography, design tokens, responsive breakpoints, interactions, and observable backend behavior.
+2. Visual fidelity is a hard requirement. Treat the captured website as the source of truth. Do not substitute a generic SaaS layout or invented theme.
+3. Preserve exact captured colors and gradients, typography families/weights, font sizes, line heights, container widths, grid/flex structure, gaps, padding, margins, borders, radii, shadows, backgrounds, image ratios, button dimensions, section order, header/footer structure, and responsive breakpoints whenever those values are present in the source.
+4. Preserve the source spacing hierarchy and unusual layout behavior instead of normalizing it into a generic modern design.
+5. Reuse captured assets, logos, images, fonts, CSS rules, HTML semantics, routes, and observable JavaScript interactions as the primary evidence. When an exact source CSS value is available, prefer it over Tailwind defaults.
+6. Reproduce responsive behavior for desktop/tablet/mobile from the captured breakpoints and layout rules. Do not invent breakpoints when source evidence exists.
+7. The standalone previewHtml must use the same visual system and structure as the generated project files. It is a faithful visual representation, not a separate mockup.
+8. Preserve observable functionality and infer backend architecture only from public evidence. Never claim access to private server code that was not captured.
+9. Never reject a capture because some resources were unavailable. Preserve unavailable resources as documented placeholders and continue reconstructing everything successfully captured.
+10. Return complete runnable project files, including the actual entry point/components, backend/API routes where observable, database migrations/schema, README.md, .env.example, and package.json.
+11. Return a PostgreSQL schema that supports the observable application behavior rather than a placeholder schema.
+12. Do not omit captured routes, source snapshots, assets, styles, or important interactions merely to shorten the result.
+13. Before returning the result, internally compare the generated structure and preview against the supplied HTML/CSS context and correct mismatches in colors, spacing, typography, dimensions, section ordering, and responsive behavior.
+`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -302,7 +308,7 @@ class OpenAICompatibleProvider implements AIProvider {
         messages: [
           {
             role: 'system',
-            content: 'Return JSON with keys: versionLabel, summary, framework, previewHtml, files (array of {filePath, language, content}), databaseTables (array of {tableName, description, columns}).',
+            content: 'You are the SiteForge AI Reconstruction Engine. Return JSON with keys: versionLabel, summary, framework, previewHtml, files (array of {filePath, language, content}), databaseTables (array of {tableName, description, columns}). The captured website HTML/CSS/assets are the source of truth. Visual fidelity is mandatory: preserve exact source colors, typography, spacing, dimensions, container widths, gaps, borders, radii, shadows, section structure, assets, and responsive breakpoints whenever they are present in the capture. Do not replace the source with a generic SaaS template. The previewHtml must use the same visual system and structure as the generated project files and should be treated as a faithful visual representation, not a mockup. Never reject partially unavailable captures; reconstruct everything successfully captured and document only what cannot be reproduced.',
           },
           { role: 'user', content: `Context:\n${contextSummary}\n\nInstructions:\n${prompt}` },
         ],
@@ -458,7 +464,7 @@ export async function runAIProjectReconstruction(
 
     const effectivePrompt =
       userInstructions.trim() ||
-      'Reconstruct this website as a modern, responsive, accessible full-stack React + TypeScript + Tailwind CSS application with modular components, interactive navigation, clean typography, and PostgreSQL schema.';
+      'Reconstruct the analyzed website with maximum source fidelity. Treat the captured HTML, CSS, assets, typography, colors, spacing, dimensions, layout structure, interactions, and responsive breakpoints as the source of truth. Match the original visual design and page structure rather than inventing a generic template. Produce a complete responsive full-stack React + TypeScript + Tailwind CSS implementation and make the standalone preview visually match the same reconstruction.';
 
     const result = await provider.generateReconstruction(effectivePrompt, contextSummary);
 

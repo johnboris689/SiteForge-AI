@@ -206,6 +206,15 @@ export function ProjectWorkspace({
     }
   }, [selectedFile?.id]);
 
+  useEffect(() => {
+    if (openRecreateRequest > 0) {
+      setActiveTab('recreate');
+      setRecreateView('chat');
+      setChatMessages((prev) => prev.length ? prev : [{ id: 'welcome', role: 'assistant', content: 'I will inspect the extracted HTML, CSS, JavaScript, assets, routes, design tokens, and current project files before generating the reconstruction.', time: Date.now() }]);
+      void handleRunAiReconstruction('recreate');
+    }
+  }, [openRecreateRequest]);
+
   if (loading || !details) {
     return (
       <div className="p-8 space-y-4">
@@ -332,15 +341,6 @@ export function ProjectWorkspace({
       setAiWorking(false);
     }
   };
-
-  useEffect(() => {
-    if (openRecreateRequest > 0) {
-      setActiveTab('recreate');
-      setRecreateView('chat');
-      setChatMessages((prev) => prev.length ? prev : [{ id: 'welcome', role: 'assistant', content: 'I will inspect the extracted HTML, CSS, JavaScript, assets, routes, design tokens, and current project files before generating the reconstruction.', time: Date.now() }]);
-      void handleRunAiReconstruction('recreate');
-    }
-  }, [openRecreateRequest]);
 
   const handleSaveFileContent = async () => {
     if (!selectedFile) return;
