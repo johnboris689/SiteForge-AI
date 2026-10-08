@@ -95,10 +95,14 @@ USER INSTRUCTIONS:
 ${prompt}
 
 REQUIREMENTS:
-1. Prioritize visual fidelity, responsive layout (desktop/tablet/mobile), reusable components (Navbar, Hero, Sidebar/FeatureGrid, Forms, Footer), accessibility, and clean architecture.
-2. Provide a complete, self-contained, interactive \`previewHtml\` document (using <script src="https://cdn.tailwindcss.com"></script> and interactive vanilla JS/state toggles for tabs/modals/drawers) that visually and functionally represents the rebuilt application.
-3. Provide modular project source files in \`files\` (including \`src/App.tsx\`, \`src/components/Navbar.tsx\`, \`src/components/Hero.tsx\`, \`src/components/Dashboard.tsx\`, \`src/api/routes.ts\`, \`migrations/001_initial.sql\`, \`README.md\`, \`.env.example\`, \`package.json\`).
-4. Provide a relational PostgreSQL database schema in \`databaseTables\`.`,
+1. First perform a source-understanding pass: infer the site's information architecture, route behavior, components, visual system, forms, client-side interactions, data flows, and observable server/backend requirements from the supplied capture.
+2. Prioritize high visual and functional fidelity. Do not create a generic SaaS mockup when captured source is available. Reuse the extracted HTML structure, CSS, JavaScript behavior, assets, routes, typography, colors, and interaction patterns as the primary evidence.
+3. Reproduce responsive behavior for desktop/tablet/mobile and implement a backend architecture that matches observable workflows (forms, actions, API calls, and persistence needs) as closely as can be inferred from public evidence. Never claim access to private server code that was not captured.
+4. Never reject the capture merely because some resources were unavailable. Preserve unavailable resources as documented placeholders and continue reconstructing everything that was successfully captured.
+5. Provide a complete, self-contained, interactive \`previewHtml\` document (using <script src="https://cdn.tailwindcss.com"></script> and interactive vanilla JS/state toggles for tabs/modals/drawers) that visually and functionally represents the rebuilt application.
+6. Provide modular project source files in \`files\` (including \`src/App.tsx\`, \`src/components/Navbar.tsx\`, \`src/components/Hero.tsx\`, backend/API routes, database migrations, \`README.md\`, \`.env.example\`, and \`package.json\`).
+7. Provide a relational PostgreSQL database schema in \`databaseTables\` that supports the observable application behavior rather than a placeholder schema.
+8. Do not omit captured routes, source snapshots, assets, or important interactions just to shorten the answer. The final project should remain complete and runnable.`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -403,18 +407,36 @@ export async function runAIProjectReconstruction(
     const selectedPages = details.pages.filter((p) => p.selected);
     const pagesToUse = selectedPages.length > 0 ? selectedPages : details.pages;
 
+    // Give the reconstruction model substantially more of the actual capture instead of a tiny HTML snippet.
+    // Binary assets are represented by their local path/metadata; text assets are included when practical.
+    // This keeps the ZIP complete while giving the AI the source context it needs to avoid generic mockups.
+    const sourceFilesForAI = details.files.map((f) => ({
+      path: f.filePath,
+      language: f.language,
+      content: f.content.slice(0, 50000),
+    }));
+    const assetContext = details.assets.map((a) => ({
+      url: a.url,
+      localPath: a.localPath,
+      assetType: a.assetType,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+      text: a.contentText ? a.contentText.slice(0, 12000) : undefined,
+    }));
     const contextSummary = JSON.stringify(
       {
         projectName: details.project.name,
         originalUrl: details.project.originalUrl,
+        instruction: 'Treat this capture as the source of truth. Do not replace it with a generic template. Preserve every available route, asset reference, style token, interaction signal, and extracted source file unless a user explicitly asks for a change.',
         discoveredPages: pagesToUse.map((p) => ({
           path: p.path,
           title: p.title,
           pageType: p.pageType,
           isAuthUi: p.isAuthUi,
           meta: p.metaJson,
-          htmlSnippet: p.htmlContent.slice(0, 1800),
+          fullHtml: p.htmlContent.slice(0, 60000),
         })),
+        assets: assetContext,
         analysis: details.analysis
           ? {
               technologies: JSON.parse(details.analysis.technologiesJson || '[]'),
@@ -422,11 +444,13 @@ export async function runAIProjectReconstruction(
               fonts: JSON.parse(details.analysis.fontsJson || '[]'),
               navigation: JSON.parse(details.analysis.navigationJson || '[]'),
               components: JSON.parse(details.analysis.componentsJson || '[]'),
+              breakpoints: JSON.parse(details.analysis.breakpointsJson || '[]'),
+              externalResources: JSON.parse(details.analysis.externalResourcesJson || '[]'),
             }
           : null,
         existingVersionNumber: details.latestVersion?.versionNumber || 1,
-        existingFilesList: details.files.map((f) => f.filePath),
-        currentPreviewSnippet: details.latestVersion?.previewHtml?.slice(0, 2500) || '',
+        existingFiles: sourceFilesForAI,
+        currentPreview: details.latestVersion?.previewHtml?.slice(0, 30000) || '',
       },
       null,
       2

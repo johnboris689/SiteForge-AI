@@ -9,21 +9,17 @@ import { auth } from './lib/firebase.ts';
 import { LandingPage } from './components/LandingPage.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { ProjectWorkspace } from './components/ProjectWorkspace.tsx';
-import { AdminPanel } from './components/AdminPanel.tsx';
 import avatarImg from './assets/images/avatar_lead_architect_1791108667216.jpg';
 import {
-  LayoutDashboard,
   Globe,
   FolderGit2,
   Activity,
   Sparkles,
   Code2,
   Download,
-  KeyRound,
   Settings,
   CreditCard,
   HelpCircle,
-  Shield,
   Bell,
   Plus,
   Search,
@@ -39,18 +35,16 @@ import {
 } from 'lucide-react';
 
 type DashboardSection =
-  | 'overview'
   | 'analyze'
   | 'projects'
   | 'crawls'
   | 'ai-rebuilds'
   | 'generated-code'
   | 'downloads'
-  | 'api'
   | 'settings'
   | 'billing'
   | 'help'
-  | 'admin';
+;
 
 function App() {
   // Auth & Session state (stored in memory per security guidelines)
@@ -69,9 +63,11 @@ function App() {
 
   // View routing state
   const [viewMode, setViewMode] = useState<'landing' | 'dashboard'>(() => (authToken ? 'dashboard' : 'landing'));
-  const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
+  const [activeSection, setActiveSection] = useState<DashboardSection>('projects');
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openRecreateRequest, setOpenRecreateRequest] = useState(0);
+  const [selectedNotification, setSelectedNotification] = useState<any | null>(null);
 
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -93,7 +89,6 @@ function App() {
     jobs: any[];
     aiGenerations: any[];
     downloads: any[];
-    apiKeys: any[];
   }>({
     stats: {
       projectsCount: 0,
@@ -107,7 +102,6 @@ function App() {
     jobs: [],
     aiGenerations: [],
     downloads: [],
-    apiKeys: [],
   });
 
   // Search & Filter state for Projects
@@ -118,10 +112,6 @@ function App() {
   // Notifications & Toast
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
-
-  // API Key creation state
-  const [newKeyName, setNewKeyName] = useState('');
-  const [newlyCreatedSecretKey, setNewlyCreatedSecretKey] = useState<string | null>(null);
 
   // Account Settings state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -233,7 +223,6 @@ function App() {
           jobs: Array.isArray(dashJson?.jobs) ? dashJson.jobs : [],
           aiGenerations: Array.isArray(dashJson?.aiGenerations) ? dashJson.aiGenerations : [],
           downloads: Array.isArray(dashJson?.downloads) ? dashJson.downloads : [],
-          apiKeys: Array.isArray(dashJson?.apiKeys) ? dashJson.apiKeys : [],
         });
       } else {
         // Authentication succeeded even if dashboard telemetry is temporarily unavailable.
@@ -259,6 +248,7 @@ function App() {
     try { window.sessionStorage.setItem('siteforge_auth_token', token); } catch {}
     if (user) setCurrentUser(user);
     setViewMode('dashboard');
+    setActiveSection('projects');
     await loadUserProfileAndDashboard(token);
 
     if (pendingAnalyzePayload) {
@@ -400,39 +390,6 @@ function App() {
     setNotificationsList((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
-  const handleCreateApiKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authToken || !newKeyName.trim()) return;
-    try {
-      const res = await fetch('/api/keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ name: newKeyName }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setNewlyCreatedSecretKey(data.rawSecretKey);
-      setNewKeyName('');
-      loadUserProfileAndDashboard(authToken);
-      showToast('API key created.', 'success');
-    } catch (err: any) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  const handleRevokeApiKey = async (id: number) => {
-    if (!authToken) return;
-    await fetch(`/api/keys/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
-    loadUserProfileAndDashboard(authToken);
-    showToast('API key revoked.', 'info');
-  };
-
   const handleChangePlan = async (tier: string) => {
     if (!authToken) return;
     const res = await fetch('/api/billing/plan', {
@@ -537,25 +494,17 @@ function App() {
   }, [dashboardData.projects, projectSearch, statusFilter, modeFilter]);
 
   const unreadCount = notificationsList.filter((n) => !n.isRead).length;
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
-
   const navItems: { id: DashboardSection; label: string; icon: any }[] = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'analyze', label: 'Analyze Website', icon: Globe },
     { id: 'projects', label: 'Projects', icon: FolderGit2 },
     { id: 'crawls', label: 'Crawls & Jobs', icon: Activity },
     { id: 'ai-rebuilds', label: 'AI Rebuilds', icon: Sparkles },
     { id: 'generated-code', label: 'Generated Code', icon: Code2 },
     { id: 'downloads', label: 'Downloads', icon: Download },
-    { id: 'api', label: 'Developer API', icon: KeyRound },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'help', label: 'Help & Docs', icon: HelpCircle },
   ];
-
-  if (isAdmin) {
-    navItems.push({ id: 'admin', label: 'Admin Console', icon: Shield });
-  }
 
   return (
     <div className="min-h-screen bg-[#090D16] text-slate-100">
@@ -592,6 +541,18 @@ function App() {
           analysisState={landingAnalysis}
           onStartAnalysis={handleLandingStart}
           onDownloadZip={handleLandingDownload}
+          onRecreateWithAI={() => {
+            if (!landingAnalysis.projectId || landingAnalysis.job?.status !== 'completed') return;
+            if (!authToken) {
+              setAuthModalInitialMode('login');
+              setAuthModalOpen(true);
+              return;
+            }
+            setOpenRecreateRequest((n) => n + 1);
+            setSelectedProjectId(landingAnalysis.projectId);
+            setActiveSection('projects');
+            setViewMode('dashboard');
+          }}
           onOpenAuth={(mode) => {
             setAuthModalInitialMode(mode);
             setAuthModalOpen(true);
@@ -609,7 +570,7 @@ function App() {
               <button
                 onClick={() => {
                   setSelectedProjectId(null);
-                  setActiveSection('overview');
+                  setActiveSection('projects');
                 }}
                 className="text-lg font-bold tracking-tight text-white font-display"
               >
@@ -710,7 +671,7 @@ function App() {
                   <span
                     onClick={() => {
                       setSelectedProjectId(null);
-                      setActiveSection('overview');
+                      setActiveSection('projects');
                     }}
                     className="hover:text-white cursor-pointer"
                   >
@@ -758,13 +719,11 @@ function App() {
                           <div className="text-xs text-slate-500 py-4 text-center">No notifications yet.</div>
                         ) : (
                           notificationsList.map((n) => (
-                            <div key={n.id} className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-xs">
-                              <div className="font-semibold text-white">{n.title}</div>
-                              <div className="text-slate-400 mt-0.5 leading-relaxed">{n.message}</div>
-                              <div className="text-[10px] font-mono text-slate-500 mt-1">
-                                {new Date(n.createdAt).toLocaleTimeString()}
-                              </div>
-                            </div>
+                            <button key={n.id} type="button" onClick={() => { setSelectedNotification(n); setNotifDropdownOpen(false); }} className="w-full text-left p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-xs hover:border-indigo-500/40 hover:bg-slate-900 transition-colors">
+                              <div className="flex items-center justify-between gap-3"><div className="font-semibold text-white">{n.title}</div>{!n.isRead && <span className="h-2 w-2 rounded-full bg-indigo-400 shrink-0" />}</div>
+                              <div className="text-slate-400 mt-1 leading-relaxed line-clamp-2">{n.message}</div>
+                              <div className="text-[10px] font-mono text-slate-500 mt-2">{new Date(n.createdAt).toLocaleString()}</div>
+                            </button>
                           ))
                         )}
                       </div>
@@ -813,6 +772,18 @@ function App() {
               </div>
             )}
 
+            {selectedNotification && (
+              <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="notification-title">
+                <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-[#0D1320] shadow-2xl overflow-hidden">
+                  <div className="flex items-center justify-between p-5 border-b border-slate-800">
+                    <div className="flex items-center gap-3"><Bell className="w-5 h-5 text-indigo-400" /><h2 id="notification-title" className="text-base font-bold text-white">{selectedNotification.title}</h2></div>
+                    <button type="button" onClick={() => setSelectedNotification(null)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800" aria-label="Close notification"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="p-5 space-y-3"><p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{selectedNotification.message}</p><div className="text-xs font-mono text-slate-500">{new Date(selectedNotification.createdAt).toLocaleString()}</div></div>
+                </div>
+              </div>
+            )}
+
             {/* Main Viewport Content */}
             <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
               {dashboardLoading && (
@@ -837,6 +808,7 @@ function App() {
                   projectId={selectedProjectId}
                   authToken={authToken}
                   currentUser={currentUser}
+                  openRecreateRequest={openRecreateRequest}
                   onConnectGithub={handleConnectGithub}
                   onBack={() => setSelectedProjectId(null)}
                   onProjectDeleted={() => {
@@ -851,118 +823,6 @@ function App() {
                 />
               ) : (
                 <>
-                  {/* SECTION: OVERVIEW */}
-                  {activeSection === 'overview' && (
-                    <div className="space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                          <h1 className="text-2xl font-bold text-white">Developer Workspace Overview</h1>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            Real-time telemetry for your website crawls, extracted source code, and AI reconstructions.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* 6 Required Dashboard Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                        {[
-                          ['Projects', dashboardData.stats.projectsCount],
-                          ['Active Jobs', dashboardData.stats.activeJobsCount],
-                          ['Completed Analyses', dashboardData.stats.completedAnalysesCount],
-                          ['Generated Websites', dashboardData.stats.generatedWebsitesCount],
-                          ['Downloads', dashboardData.stats.downloadsCount],
-                          ['Storage Used', `${(dashboardData.stats.totalStorageBytes / 1024).toFixed(1)} KB`],
-                        ].map(([label, val]) => (
-                          <div key={String(label)} className="p-4 rounded-xl border border-slate-800 bg-[#0D1320]">
-                            <div className="text-xs text-slate-400">{label}</div>
-                            <div className="text-2xl font-bold text-white font-mono tabular-nums mt-1.5">{val}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Recent Projects Table */}
-                      <div className="p-5 rounded-xl border border-slate-800 bg-[#0D1320] space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <h2 className="text-sm font-bold text-white">Recent Projects</h2>
-                          <button
-                            onClick={() => setActiveSection('projects')}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
-                          >
-                            View & Filter All Projects →
-                          </button>
-                        </div>
-
-                        {dashboardData.projects.length === 0 ? (
-                          <div className="py-12 text-center space-y-3 border border-dashed border-slate-800 rounded-xl">
-                            <Globe className="w-8 h-8 text-indigo-400 mx-auto" />
-                            <div className="text-sm font-semibold text-white">No Website Projects Yet</div>
-                            <p className="text-xs text-slate-400 max-w-md mx-auto">
-                              Enter any authorized public URL to extract its routes, assets, design tokens, and reconstruct it into a modular React application.
-                            </p>
-                            <button
-                              onClick={() => { setSelectedProjectId(null); setViewMode('landing'); }}
-                              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white"
-                            >
-                              Analyze First Website
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-xs">
-                              <thead>
-                                <tr className="border-b border-slate-800 text-slate-400">
-                                  <th className="py-2.5 px-3">Project Name</th>
-                                  <th className="py-2.5 px-3">Target URL</th>
-                                  <th className="py-2.5 px-3">Mode</th>
-                                  <th className="py-2.5 px-3 text-right">Pages / Assets</th>
-                                  <th className="py-2.5 px-3 text-right">Size</th>
-                                  <th className="py-2.5 px-3">Status</th>
-                                  <th className="py-2.5 px-3 text-right">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-800/60">
-                                {dashboardData.projects.slice(0, 8).map((p) => (
-                                  <tr key={p.id} className="hover:bg-slate-900/50">
-                                    <td className="py-3 px-3 font-semibold text-white">{p.name}</td>
-                                    <td className="py-3 px-3 font-mono text-slate-300">{p.originalUrl}</td>
-                                    <td className="py-3 px-3 font-mono text-indigo-400">{p.mode}</td>
-                                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-300">
-                                      {p.pagesDiscovered}p · {p.assetsDiscovered}a
-                                    </td>
-                                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-400">
-                                      {(p.projectSizeBytes / 1024).toFixed(1)} KB
-                                    </td>
-                                    <td className="py-3 px-3 font-mono uppercase">
-                                      <span
-                                        className={
-                                          p.status === 'completed'
-                                            ? 'text-emerald-400'
-                                            : p.status === 'failed'
-                                            ? 'text-red-400'
-                                            : 'text-amber-400'
-                                        }
-                                      >
-                                        {p.status}
-                                      </span>
-                                    </td>
-                                    <td className="py-3 px-3 text-right">
-                                      <button
-                                        onClick={() => setSelectedProjectId(p.id)}
-                                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 text-white font-medium transition-colors"
-                                      >
-                                        Open Workspace
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   {/* SECTION: PROJECTS (WITH SEARCH & FILTERS) */}
                   {activeSection === 'projects' && (
                     <div className="space-y-6">
@@ -1200,78 +1060,6 @@ function App() {
                     </div>
                   )}
 
-                  {/* SECTION: DEVELOPER API & KEYS */}
-                  {activeSection === 'api' && (
-                    <div className="space-y-6">
-                      <div className="p-5 rounded-xl border border-slate-800 bg-[#0D1320] space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h1 className="text-lg font-bold text-white">Developer REST API & Keys</h1>
-                            <p className="text-xs text-slate-400">
-                              Programmatically trigger crawls, retrieve source manifests, and download ZIP archives.
-                            </p>
-                          </div>
-                          <a
-                            href="/api/openapi.json"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 text-xs font-mono text-indigo-300 flex items-center gap-1.5"
-                          >
-                            <span>OpenAPI 3.1 Spec</span>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
-
-                        <form onSubmit={handleCreateApiKey} className="flex items-center gap-3 max-w-md">
-                          <input
-                            type="text"
-                            required
-                            value={newKeyName}
-                            onChange={(e) => setNewKeyName(e.target.value)}
-                            placeholder="Key label (e.g., CI/CD Pipeline)"
-                            className="flex-1 px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white"
-                          />
-                          <button
-                            type="submit"
-                            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white whitespace-nowrap"
-                          >
-                            Generate Key
-                          </button>
-                        </form>
-
-                        {newlyCreatedSecretKey && (
-                          <div className="p-3.5 rounded-lg border border-emerald-500/40 bg-emerald-950/20 text-xs space-y-1">
-                            <div className="font-semibold text-emerald-300">
-                              Copy your secret API key now — it will not be shown again:
-                            </div>
-                            <div className="font-mono text-white bg-slate-950 p-2 rounded border border-slate-800 select-all">
-                              {newlyCreatedSecretKey}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="divide-y divide-slate-800 text-xs">
-                          {dashboardData.apiKeys.map((k) => (
-                            <div key={k.id} className="py-3 flex items-center justify-between">
-                              <div>
-                                <div className="font-semibold text-white">{k.name}</div>
-                                <div className="font-mono text-slate-400">
-                                  {k.keyPrefix} · Created {new Date(k.createdAt).toLocaleDateString()}
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleRevokeApiKey(k.id)}
-                                className="text-red-400 hover:text-red-300 font-medium"
-                              >
-                                Revoke
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* SECTION: ACCOUNT SETTINGS */}
                   {activeSection === 'settings' && (
                     <div className="space-y-6">
@@ -1473,15 +1261,6 @@ POST /api/jobs/:id/retry`}
                     </div>
                   )}
 
-                  {/* SECTION: ADMIN PANEL */}
-                  {activeSection === 'admin' && isAdmin && authToken && (
-                    <AdminPanel
-                      authToken={authToken}
-                      currentUserId={currentUser.id}
-                      onSelectProject={(id) => setSelectedProjectId(id)}
-                      onNotify={showToast}
-                    />
-                  )}
                 </>
               )}
             </main>

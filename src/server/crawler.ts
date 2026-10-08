@@ -679,6 +679,31 @@ async function runCrawlWorker(
         addAsset($(el).attr('data-src') || '', 'image', current.url, `lazy-image-${idx}`);
       });
 
+      // Capture image/social metadata and other browser-visible resources that may not be in <img>.
+      $('meta[property="og:image"], meta[name="twitter:image"], meta[name="twitter:image:src"]').each((idx, el) => {
+        const value = $(el).attr('content');
+        if (value) addAsset(value, 'image', current.url, `meta-image-${idx}`);
+      });
+      $('meta[name="msapplication-TileImage"], meta[name="msapplication-square70x70logo"], meta[name="msapplication-square150x150logo"]').each((idx, el) => {
+        const value = $(el).attr('content');
+        if (value) addAsset(value, 'image', current.url, `tile-image-${idx}`);
+      });
+      $('form[action]').each((_, el) => {
+        const action = $(el).attr('action');
+        if (action) {
+          try {
+            const resolved = new URL(action, current.url);
+            if (resolved.hostname === rootUrl.hostname) queue.push({ url: resolved.toString(), depth: current.depth + 1 });
+          } catch {}
+        }
+      });
+      $('[style]').each((_, el) => {
+        const style = $(el).attr('style') || '';
+        for (const match of style.matchAll(/url\(\s*['"]?([^'")]+?)['"]?\s*\)/gi)) {
+          addAsset(match[1], 'other', current.url, 'inline-style-resource');
+        }
+      });
+
       $('source[src], source[srcset]').each((idx, el) => {
         const src = $(el).attr('src');
         if (src) addAsset(src, 'other', current.url, `source-${idx}`);
@@ -1227,6 +1252,10 @@ function rewriteHtmlForStaticMirror(rawHtml: string, sourceUrl: string, assetMap
     const css = $(el).html() || '';
     $(el).html(css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (_m, q, u) => `url("${toLocal(u) || u}")`));
   });
+  $('[style]').each((_, el) => {
+    const css = $(el).attr('style') || '';
+    $(el).attr('style', css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (_m, q, u) => `url("${toLocal(u) || u}")`));
+  });
   return $.html();
 }
 
@@ -1247,6 +1276,19 @@ function buildInitialProjectFiles(
   const primaryColor = colors[0]?.hex || '#4F46E5';
 
   const files: { filePath: string; language: string; content: string }[] = [
+    {
+      filePath: 'SOURCE_CAPTURE_MANIFEST.json',
+      language: 'json',
+      content: JSON.stringify({
+        generatedBy: 'SiteForge AI',
+        sourceUrl: originalUrl,
+        generatedAt: new Date().toISOString(),
+        pages: pages.map((p) => ({ path: p.path, url: p.url, title: p.title, pageType: p.pageType, isAuthUi: p.isAuthUi })),
+        assetCount: mirrorAssetMap.size,
+        assets: Array.from(mirrorAssetMap.entries()).map(([url, localPath]) => ({ url, localPath })),
+        note: 'This manifest lists publicly reachable resources discovered during the crawl. Private/authenticated server code, blocked resources, and resources not exposed to the crawler cannot be captured.',
+      }, null, 2),
+    },
     {
       filePath: 'package.json',
       language: 'json',

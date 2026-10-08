@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
+  Send,
 } from 'lucide-react';
 
 interface ProjectWorkspaceProps {
@@ -41,6 +42,7 @@ interface ProjectWorkspaceProps {
   onProjectDeleted: () => void;
   onProjectDuplicated: (newProjectId: number) => void;
   onNotify: (msg: string, type?: 'info' | 'success' | 'error') => void;
+  openRecreateRequest?: number;
 }
 
 type WorkspaceTab =
@@ -63,6 +65,7 @@ export function ProjectWorkspace({
   onProjectDeleted,
   onProjectDuplicated,
   onNotify,
+  openRecreateRequest = 0,
 }: ProjectWorkspaceProps) {
   const [details, setDetails] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,8 @@ export function ProjectWorkspace({
   const [aiWorking, setAiWorking] = useState(false);
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [previewKey, setPreviewKey] = useState(0);
+  const [recreateView, setRecreateView] = useState<'chat' | 'review'>('chat');
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string; time: number }>>([]);
 
   // Database Builder state
   const [dbInstructions, setDbInstructions] = useState('');
@@ -300,32 +305,42 @@ export function ProjectWorkspace({
   };
 
   const handleRunAiReconstruction = async (operationType: 'recreate' | 'modify', customPrompt?: string) => {
+    const promptToUse = customPrompt !== undefined ? customPrompt : aiPrompt;
+    const displayPrompt = promptToUse.trim() || (operationType === 'recreate'
+      ? 'Recreate the website from the complete extracted source and asset context with maximum visual and functional fidelity.'
+      : 'Apply my requested changes while preserving the existing reconstruction.');
     setAiWorking(true);
+    setRecreateView('chat');
+    setChatMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: 'user', content: displayPrompt, time: Date.now() }, { id: `thinking-${Date.now() + 1}`, role: 'assistant', content: 'Analyzing the extracted source and project context first…', time: Date.now() }]);
     try {
-      const promptToUse = customPrompt !== undefined ? customPrompt : aiPrompt;
       const res = await fetch(`/api/projects/${projectId}/recreate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          prompt: promptToUse,
-          operationType,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ prompt: displayPrompt, operationType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'AI reconstruction failed.');
       setDetails(data.projectDetails);
       setAiPrompt('');
       setPreviewKey((k) => k + 1);
+      setChatMessages((prev) => [...prev, { id: `done-${Date.now()}`, role: 'assistant', content: data.result.summary || 'Reconstruction completed. Open Review to inspect the generated website, then return here for any changes.', time: Date.now() }]);
       onNotify(data.result.summary || 'AI reconstruction completed!', 'success');
     } catch (err: any) {
+      setChatMessages((prev) => [...prev, { id: `error-${Date.now()}`, role: 'assistant', content: `I could not complete that rebuild: ${err.message || 'Unknown error'}`, time: Date.now() }]);
       onNotify(err.message, 'error');
     } finally {
       setAiWorking(false);
     }
   };
+
+  useEffect(() => {
+    if (openRecreateRequest > 0) {
+      setActiveTab('recreate');
+      setRecreateView('chat');
+      setChatMessages((prev) => prev.length ? prev : [{ id: 'welcome', role: 'assistant', content: 'I will inspect the extracted HTML, CSS, JavaScript, assets, routes, design tokens, and current project files before generating the reconstruction.', time: Date.now() }]);
+      void handleRunAiReconstruction('recreate');
+    }
+  }, [openRecreateRequest]);
 
   const handleSaveFileContent = async () => {
     if (!selectedFile) return;
@@ -1308,195 +1323,54 @@ export function ProjectWorkspace({
         </div>
       )}
 
-      {/* TAB 5: SPLIT-SCREEN AI RECONSTRUCTION WORKSPACE & SANDBOXED PREVIEW */}
+      {/* TAB 5: AI RECONSTRUCTION CHAT + REVIEW */}
       {activeTab === 'recreate' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* LEFT: Original Analysis Context + AI Chat & Prompt Box */}
-          <div className="lg:col-span-5 flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0D1320] p-5 space-y-5">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div>
-                  <h2 className="text-sm font-bold text-white">AI Reconstruction Engine</h2>
-                  <p className="text-xs text-slate-400">
-                    Active Stack: {latestVersion?.framework || 'React + Tailwind + Vite'}
-                  </p>
-                </div>
-                <span className="text-xs font-mono text-indigo-400">
-                  Version {latestVersion?.versionNumber || 1}
-                </span>
-              </div>
+        <div className="rounded-2xl border border-slate-800 bg-[#0B101B] overflow-hidden min-h-[720px] flex flex-col">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-[#090D16]/95">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center"><Sparkles className="w-4 h-4 text-indigo-300" /></div>
+              <div className="min-w-0"><div className="text-sm font-semibold text-white">SiteForge AI</div><div className="text-[11px] text-slate-500 truncate">Source-aware reconstruction assistant · Version {latestVersion?.versionNumber || 1}</div></div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button type="button" onClick={() => setRecreateView('chat')} className={`px-3 py-2 rounded-lg text-xs font-semibold ${recreateView === 'chat' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>Chat</button>
+              <button type="button" onClick={() => setRecreateView('review')} className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${recreateView === 'review' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}><Eye className="w-3.5 h-3.5" /> Review</button>
+              <button type="button" onClick={openGithubModal} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-white text-xs font-bold text-slate-950 flex items-center gap-1.5"><GitBranch className="w-3.5 h-3.5" /> GitHub</button>
+            </div>
+          </div>
 
-              {/* Extracted Context Summary */}
-              <div className="p-3.5 rounded-lg border border-slate-800 bg-slate-950/80 text-xs space-y-1.5">
-                <div className="font-semibold text-white">Extracted Source Context Passed to AI:</div>
-                <div className="text-slate-400 font-mono">
-                  · Selected Pages: {pages.filter((p: any) => p.selected).length} / {pages.length} routes
+          {recreateView === 'chat' ? (
+            <>
+              <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 space-y-5">
+                <div className="max-w-3xl mx-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300 leading-relaxed">
+                  <div className="flex items-center gap-2 text-white font-semibold mb-2"><Sparkles className="w-4 h-4 text-indigo-400" /> Source analysis is the first step</div>
+                  I use the crawled routes, raw HTML, extracted CSS/JS, images, fonts, metadata, technology signals, design tokens and generated files as reconstruction context. Publicly inaccessible/private server code cannot be fetched, but the generated project can include a backend architecture based on observable forms, routes and behavior.
                 </div>
-                <div className="text-slate-400 font-mono">
-                  · Color Tokens: {colors.slice(0, 4).map((c: any) => c.hex).join(', ')}
-                </div>
-                <div className="text-slate-400 font-mono">
-                  · Detected Stack: {technologies.map((t: any) => t.name).join(', ')}
-                </div>
-              </div>
-
-              {/* Quick Modification Presets */}
-              <div>
-                <div className="text-xs text-slate-400 mb-2">Quick Reconstruction & Modification Directives:</div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    'Rebuild full website with modern dark SaaS layout and collapsible sidebar',
-                    'Change the primary color to crimson (#DC2626) and refine card spacing',
-                    'Add full authentication modal (Login, Signup, Forgot Password) and user profile drawer',
-                    'Add interactive pricing comparison matrix and FAQ accordion',
-                  ].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setAiPrompt(preset)}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:border-indigo-500/50 text-[11px] text-slate-300 hover:text-white text-left transition-colors"
-                    >
-                      "{preset}"
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* AI Chat & Modification History */}
-              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                <div className="text-xs font-semibold text-slate-400">AI Generation Log ({aiHistory.length})</div>
-                {aiHistory.length === 0 ? (
-                  <div className="text-xs text-slate-500">
-                    Click "Recreate Full Project with AI" or enter a modification prompt below.
-                  </div>
-                ) : (
-                  aiHistory.map((item: any) => (
-                    <div key={item.id} className="p-3 rounded-lg border border-slate-800 bg-slate-950 text-xs space-y-1">
-                      <div className="flex items-center justify-between text-indigo-400 font-mono">
-                        <span>{item.operationType.toUpperCase()}</span>
-                        <span>{(item.durationMs / 1000).toFixed(1)}s</span>
-                      </div>
-                      <div className="text-white font-medium">Prompt: "{item.prompt}"</div>
-                      <div className="text-slate-400 leading-relaxed">{item.responseSummary}</div>
-                    </div>
-                  ))
+                {chatMessages.length === 0 && (
+                  <div className="max-w-3xl mx-auto text-center py-16"><Sparkles className="w-8 h-8 text-indigo-400 mx-auto mb-4" /><h2 className="text-2xl font-semibold text-white">What should we build?</h2><p className="text-sm text-slate-500 mt-2">Start with a full reconstruction, then describe any changes in plain language.</p><button type="button" disabled={aiWorking} onClick={() => handleRunAiReconstruction('recreate')} className="mt-6 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white disabled:opacity-50"><Sparkles className="w-4 h-4 inline mr-2" />Recreate the analyzed website</button></div>
                 )}
+                {chatMessages.map((m) => (
+                  <div key={m.id} className={`max-w-3xl mx-auto flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`${m.role === 'user' ? 'max-w-[85%] bg-indigo-600 text-white rounded-2xl rounded-br-md' : 'max-w-[90%] bg-[#121927] border border-slate-800 text-slate-200 rounded-2xl rounded-bl-md'} px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap`}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {aiWorking && <div className="max-w-3xl mx-auto text-xs text-slate-500 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" /> SiteForge AI is analyzing and rebuilding the project…</div>}
               </div>
-            </div>
-
-            {/* Bottom AI Prompt Box */}
-            <div className="pt-4 border-t border-slate-800 space-y-3">
-              <textarea
-                rows={3}
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="Ask AI to rebuild or modify the project (e.g., 'Make the dashboard sidebar collapsible', 'Change primary color to crimson', 'Add authentication')..."
-                className="w-full p-3 rounded-lg border border-slate-800 bg-slate-950 text-xs text-white focus:border-indigo-500 focus:outline-none"
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={aiWorking}
-                  onClick={() => handleRunAiReconstruction('modify')}
-                  className="flex-1 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{aiWorking ? 'AI Reconstructing (Creating New Version)...' : 'Apply AI Modification'}</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={aiWorking}
-                  onClick={() => handleRunAiReconstruction('recreate')}
-                  className="py-2.5 px-3.5 rounded-lg border border-slate-700 hover:border-slate-500 text-xs font-semibold text-slate-200 hover:text-white transition-colors disabled:opacity-50 whitespace-nowrap"
-                >
-                  Full Rebuild
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT: Isolated Live Preview Panel (Desktop / Tablet / Mobile) */}
-          <div className="lg:col-span-7 rounded-xl border border-slate-800 bg-[#0D1320] flex flex-col overflow-hidden min-h-[620px]">
-            <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white">Isolated Live Sandbox Preview</span>
-                <span className="text-xs font-mono text-slate-400">
-                  · Version {latestVersion?.versionNumber || 1}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-900 border border-slate-800">
-                  <button
-                    onClick={() => setPreviewViewport('desktop')}
-                    className={`p-1.5 rounded ${
-                      previewViewport === 'desktop' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Desktop Viewport"
-                  >
-                    <Monitor className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setPreviewViewport('tablet')}
-                    className={`p-1.5 rounded ${
-                      previewViewport === 'tablet' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Tablet Viewport (768px)"
-                  >
-                    <Tablet className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setPreviewViewport('mobile')}
-                    className={`p-1.5 rounded ${
-                      previewViewport === 'mobile' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Mobile Viewport (375px)"
-                  >
-                    <Smartphone className="w-3.5 h-3.5" />
-                  </button>
+              <div className="border-t border-slate-800 bg-[#090D16] p-3 sm:p-5">
+                <div className="max-w-3xl mx-auto rounded-2xl border border-slate-700 bg-[#0F1624] p-2 flex items-end gap-2 shadow-lg">
+                  <textarea rows={1} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!aiWorking) handleRunAiReconstruction('modify'); } }} placeholder="Message SiteForge AI…" className="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none max-h-36" />
+                  <button type="button" disabled={aiWorking || !aiPrompt.trim()} onClick={() => handleRunAiReconstruction('modify')} className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center disabled:opacity-40" aria-label="Send message"><Send className="w-4 h-4" /></button>
                 </div>
-
-                <button
-                  onClick={() => setPreviewKey((k) => k + 1)}
-                  className="p-2 rounded-lg border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white"
-                  title="Refresh Preview"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  onClick={handleOpenPreviewNewTab}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 text-xs text-slate-300 hover:text-white flex items-center gap-1.5"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open in New Tab</span>
-                </button>
+                <div className="max-w-3xl mx-auto mt-2 flex items-center justify-between text-[10px] text-slate-600"><span>Shift+Enter for a new line</span><span>Review the generated build before publishing</span></div>
               </div>
+            </>
+          ) : (
+            <div className="flex-1 bg-slate-950 p-4 sm:p-6 overflow-auto">
+              <div className="flex items-center justify-between mb-4"><div><h2 className="text-lg font-semibold text-white">Recreated Website Review</h2><p className="text-xs text-slate-500">Inspect the latest generated version. Return to Chat to request changes.</p></div><div className="flex items-center gap-2"><button onClick={() => setPreviewKey((k) => k + 1)} className="p-2 rounded-lg border border-slate-800 text-slate-400 hover:text-white" title="Refresh preview"><RefreshCw className="w-4 h-4" /></button><button onClick={handleOpenPreviewNewTab} className="px-3 py-2 rounded-lg border border-slate-800 text-xs text-slate-300 hover:text-white"><ExternalLink className="w-3.5 h-3.5 inline mr-1" />Open</button></div></div>
+              <div className="rounded-xl overflow-hidden border border-slate-800 bg-white min-h-[580px]"><iframe key={previewKey} title="Recreated website review" sandbox="allow-scripts" srcDoc={latestVersion?.previewHtml || '<html><body style="font-family:sans-serif;padding:2rem">No generated preview yet.</body></html>'} className="w-full min-h-[580px] border-0" /></div>
             </div>
-
-            <div className="flex-1 bg-slate-950 flex items-center justify-center p-4 overflow-auto">
-              <div
-                className={`h-full min-h-[540px] bg-white rounded-lg overflow-hidden shadow-2xl border border-slate-800 transition-all ${
-                  previewViewport === 'desktop'
-                    ? 'w-full'
-                    : previewViewport === 'tablet'
-                    ? 'w-[768px]'
-                    : 'w-[375px]'
-                }`}
-              >
-                <iframe
-                  key={previewKey}
-                  title="Sandboxed Recreated Website Preview"
-                  sandbox="allow-scripts"
-                  srcDoc={
-                    latestVersion?.previewHtml ||
-                    '<html><body style="background:#0f172a;color:#fff;font-family:sans-serif;padding:2rem;">No preview generated yet.</body></html>'
-                  }
-                  className="w-full h-[540px] border-0"
-                />
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

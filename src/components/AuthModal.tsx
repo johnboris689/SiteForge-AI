@@ -178,13 +178,13 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+      className="fixed inset-0 z-50 min-h-[100dvh] overflow-y-auto bg-black/90 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"
     >
-      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#0D0D12] p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
+      <div className="min-h-[100dvh] w-full bg-[#0D0D12] px-5 py-8 sm:px-8 md:px-12">
+        <div className="mx-auto flex w-full max-w-2xl items-center justify-between pb-5 border-b border-zinc-800/80">
           <div>
             <h2 id="auth-modal-title" className="text-lg font-bold text-white">
               {mode === 'login' && 'Sign In to Site Forge AI'}
@@ -209,7 +209,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         </div>
 
         {error && (
-          <div className="mt-4 p-3 rounded-xl border border-rose-500/40 bg-rose-950/30 text-xs text-rose-200 space-y-2">
+          <div className="mx-auto mt-5 w-full max-w-2xl p-3 rounded-xl border border-rose-500/40 bg-rose-950/30 text-xs text-rose-200 space-y-2">
             <div className="flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="flex-1">{error}</div>
@@ -233,7 +233,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         )}
 
         {infoMessage && (
-          <div className="mt-4 p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2.5">
+          <div className="mx-auto mt-5 w-full max-w-2xl p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p>{infoMessage}</p>
@@ -255,40 +255,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
           </div>
         )}
 
-        {(mode === 'login' || mode === 'signup') && (
-          <div className="mt-5 space-y-2.5">
-            {/* PRIMARY AUTHENTICATION: CONTINUE WITH GITHUB */}
-            <button
-              type="button"
-              onClick={handleGithubSignIn}
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-colors disabled:opacity-50"
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                />
-              </svg>
-              <span>Continue with GitHub</span>
-            </button>
-
-            <p className="text-[11px] text-center text-zinc-400">
-              Enables 1-click GitHub repository creation and direct code commits from Site Forge AI.
-            </p>
-
-            <div className="relative my-4 flex items-center justify-center">
-              <div className="border-t border-zinc-800 w-full"></div>
-              <span className="bg-[#0D0D12] px-3 text-xs text-zinc-500 whitespace-nowrap">
-                or use email credentials
-              </span>
-              <div className="border-t border-zinc-800 w-full"></div>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4 mt-3">
+        <form onSubmit={handleSubmit} className="mx-auto w-full max-w-2xl space-y-4 mt-6">
           {mode === 'signup' && (
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Full Name</label>
@@ -300,7 +267,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ada Lovelace"
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -317,7 +284,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="developer@company.com"
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -350,7 +317,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -368,7 +335,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                     value={resetToken}
                     onChange={(e) => setResetToken(e.target.value)}
                     placeholder="sf_rst_..."
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm font-mono text-white focus:border-rose-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-800 bg-[#08080C] text-sm font-mono text-white focus:border-rose-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -383,7 +350,7 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Minimum 8 characters"
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-800 bg-[#08080C] text-sm text-white focus:border-rose-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -411,19 +378,31 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
         </form>
 
         {(mode === 'login' || mode === 'signup') && (
-          <div className="mt-3">
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={handleGithubSignIn}
+              disabled={loading}
+              className="auth-provider-icon"
+              aria-label="Continue with GitHub"
+              title="Continue with GitHub"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            </button>
             <button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="w-full py-2 px-4 rounded-xl border border-zinc-800 bg-[#08080C] hover:bg-zinc-900 text-xs font-medium text-zinc-300 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              className="auth-provider-icon auth-provider-google"
+              aria-label="Continue with Google"
+              title="Continue with Google"
             >
-              <span>Or continue with Google Workspace</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.2c0-.7-.06-1.37-.18-2H12v3.79h5.23a4.47 4.47 0 0 1-1.94 2.93v2.43h3.14c1.84-1.69 2.92-4.18 2.92-7.15Z"/><path fill="#34A853" d="M12 21.67c2.63 0 4.84-.87 6.45-2.35l-3.14-2.43c-.87.58-1.98.93-3.31.93-2.54 0-4.69-1.72-5.46-4.03H3.3v2.51A9.74 9.74 0 0 0 12 21.67Z"/><path fill="#FBBC05" d="M6.54 13.79A5.85 5.85 0 0 1 6.24 12c0-.62.11-1.22.3-1.79V7.7H3.3A9.66 9.66 0 0 0 2.26 12c0 1.55.37 3.02 1.04 4.3l3.24-2.51Z"/><path fill="#EA4335" d="M12 6.18c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.83 3.2 14.63 2.33 12 2.33A9.74 9.74 0 0 0 3.3 7.7l3.24 2.51c.77-2.31 2.92-4.03 5.46-4.03Z"/></svg>
             </button>
           </div>
         )}
 
-        <div className="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
+        <div className="mx-auto mt-8 w-full max-w-2xl pt-5 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
           {mode === 'login' ? (
             <>
               <span>New to Site Forge AI?</span>

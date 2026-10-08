@@ -37,6 +37,7 @@ interface LandingPageProps {
     acceptedAcceptableUse: boolean;
   }) => Promise<void>;
   onDownloadZip: () => Promise<void>;
+  onRecreateWithAI: () => void;
   onOpenAuth: (mode: 'login' | 'signup') => void;
   onNavigateDashboard: () => void;
 }
@@ -94,10 +95,11 @@ export function LandingPage({
   analysisState,
   onStartAnalysis,
   onDownloadZip,
+  onRecreateWithAI,
   onOpenAuth,
   onNavigateDashboard,
 }: LandingPageProps) {
-  const [heroUrl, setHeroUrl] = useState('https://example.com');
+  const [heroUrl, setHeroUrl] = useState('');
   const [depth, setDepth] = useState<'page' | 'linked' | 'whole'>('linked');
   const [acceptedPolicy, setAcceptedPolicy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -124,9 +126,9 @@ export function LandingPage({
       const config: CrawlConfig = {
         scope: depth === 'page' ? 'SINGLE_PAGE' : depth === 'whole' ? 'ENTIRE' : 'SAME_DOMAIN',
         extractionMode: 'DEEP_ANALYSIS',
-        maxPages: depth === 'page' ? 1 : depth === 'whole' ? 20 : 8,
-        maxDepth: depth === 'page' ? 0 : depth === 'whole' ? 5 : 2,
-        maxFileSizeKb: 2048,
+        maxPages: depth === 'page' ? 1 : depth === 'whole' ? 500 : 50,
+        maxDepth: depth === 'page' ? 0 : depth === 'whole' ? 12 : 4,
+        maxFileSizeKb: 25600,
         requestDelayMs: 150,
         sameDomainOnly: true,
         includeSubdomains: false,
@@ -187,7 +189,7 @@ export function LandingPage({
                 <select id="sf-depth" value={depth} onChange={(e) => setDepth(e.target.value as typeof depth)} disabled={running}>
                   <option value="page">1 — this page only</option>
                   <option value="linked">2 — linked pages</option>
-                  <option value="whole">3 — whole website</option>
+                  <option value="whole">3 — whole website (up to 500 pages)</option>
                 </select>
               </div>
 
@@ -224,7 +226,7 @@ export function LandingPage({
                   <div className="sf-ready-row">
                     <CheckCircle2 className="w-5 h-5" />
                     <div><strong>ZIP source package is ready.</strong><span>The server has completed the crawl, analysis, source generation and packaging.</span></div>
-                    <button type="button" className="sf-button" onClick={onDownloadZip}><Download className="w-4 h-4" /> Download ZIP</button>
+                    <div className="sf-ready-actions"><button type="button" className="sf-button" onClick={onDownloadZip}><Download className="w-4 h-4" /> Download ZIP</button><button type="button" className="sf-button sf-button-ai" onClick={onRecreateWithAI}><WandSparkles className="w-4 h-4" /> Recreate with AI</button></div>
                   </div>
                 )}
                 {failed && <div className="sf-failure-row"><span>{job?.errorMessage || 'The analysis failed. Check the latest server event above and try again.'}</span></div>}

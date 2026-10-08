@@ -1,3 +1,15 @@
+
+## Recent SiteForge AI UI / Reconstruction Updates
+
+- Analyzer URL input starts empty instead of pre-filling `https://example.com`.
+- Completed analyses expose **Download ZIP** and **Recreate with AI** together.
+- Recreate with AI opens a chat-style reconstruction workspace, automatically starts source analysis, and provides a **Review** view plus GitHub publishing.
+- Login and signup now use full-screen layouts with icon-only GitHub and Google provider buttons.
+- The user-facing Developer API/keys screen, Admin Console, and old standalone analyzer component were removed from the web UI.
+- Notifications can be opened as full-detail dialogs.
+- Website capture now accepts larger files, crawls deeper/more pages from the main analyzer, captures additional public resource references, and emits `SOURCE_CAPTURE_MANIFEST.json`.
+- AI reconstruction receives substantially more extracted HTML/source context and is instructed to preserve captured assets/routes rather than falling back to a generic template.
+
 # SiteForge AI — Website Analyzer, Source Code Exporter, AI Reconstruction & GitHub Sync Platform
 
 **SiteForge AI** is a production-grade full-stack developer SaaS platform for analyzing authorized websites, extracting their publicly accessible structure and assets, exporting clean modular source code, reconstructing full-stack applications with AI, and pushing generated repositories directly to **GitHub**.
