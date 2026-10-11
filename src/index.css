@@ -35,3 +35,18 @@
 .auth-provider-icon:hover{transform:translateY(-1px);border-color:#52525b;background:#111114}.auth-provider-icon:focus-visible{outline:2px solid #fb7185;outline-offset:3px}.auth-provider-icon:disabled{opacity:.45;cursor:not-allowed;transform:none}.auth-provider-icon svg{width:24px;height:24px}.auth-provider-google{background:#fff;color:#111;border-color:#e4e4e7}.auth-provider-google:hover{background:#f4f4f5;border-color:#fff}
 .sf-ready-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sf-button-ai{background:#4f46e5;border-color:#3730a3;box-shadow:2px 2px 0 #1e1b4b}.sf-button-ai:hover{background:#6366f1}.sf-ready-actions .sf-button{min-height:40px}
 @media(max-width:620px){.sf-ready-actions{width:100%}.sf-ready-actions .sf-button{flex:1;min-width:0}}
+
+
+/* Unified Site Forge maroon palette: match the Website Analyzer panel throughout the app. */
+:root{--sf-maroon:#450a0a;--sf-maroon-2:#7f1d1d;--sf-maroon-3:#991b1b;--sf-accent:#dc2626;--sf-accent-soft:#f87171}
+.sf-shell{--tw-ring-color:rgba(153,27,27,.5)}
+.sf-shell [class*="bg-indigo-950"]{background-color:#17090c!important}
+.sf-shell [class*="bg-indigo-900"]{background-color:#2b0b10!important}
+.sf-shell [class*="bg-indigo-800"]{background-color:#450a0a!important}
+.sf-shell [class*="bg-indigo-700"],.sf-shell [class*="bg-indigo-600"]{background-color:#991b1b!important}
+.sf-shell [class*="hover\:bg-indigo-500"]:hover,.sf-shell [class*="hover\:bg-indigo-400"]:hover{background-color:#b91c1c!important}
+.sf-shell [class*="border-indigo-"]{border-color:#7f1d1d!important}
+.sf-shell [class*="text-indigo-300"],.sf-shell [class*="text-indigo-400"],.sf-shell [class*="text-indigo-500"]{color:#f87171!important}
+.sf-shell [class*="ring-indigo-"]{--tw-ring-color:rgba(153,27,27,.55)!important}
+.sf-shell [class*="shadow-indigo-"]{--tw-shadow-color:rgba(127,29,29,.3)!important}
+.sf-shell button:focus-visible,.sf-shell a:focus-visible,.sf-shell input:focus-visible,.sf-shell select:focus-visible{outline-color:#b91c1c}
