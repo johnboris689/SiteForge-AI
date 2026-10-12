@@ -126,7 +126,7 @@ export function LandingPage({
       const config: CrawlConfig = {
         scope: depth === 'page' ? 'SINGLE_PAGE' : depth === 'whole' ? 'ENTIRE' : 'SAME_DOMAIN',
         extractionMode: 'DEEP_ANALYSIS',
-        maxPages: depth === 'page' ? 1 : depth === 'whole' ? 500 : 50,
+        maxPages: depth === 'page' ? 1 : depth === 'whole' ? 100000 : 50,
         maxDepth: depth === 'page' ? 0 : depth === 'whole' ? 12 : 4,
         maxFileSizeKb: 25600,
         requestDelayMs: 150,
@@ -175,7 +175,7 @@ export function LandingPage({
         <section className="sf-hero sf-wrap" id="analyzer">
           <div className="sf-kicker">SITE FORGE AI — WEBSITE ANALYZER</div>
           <h1>Analyze a URL and <span>forge the source.</span></h1>
-          <p className="sf-lead">Enter the website once. Site Forge AI crawls the selected scope, inspects public assets, analyzes the structure, packages the source, and reports the real server-side progress here.</p>
+          <p className="sf-lead">Enter a website you own or are authorized to inspect. Whole-site mode can queue up to 100,000 pages; actual completion depends on site limits, available storage, and hosting resources.</p>
 
           <form className="sf-tool" onSubmit={submit}>
             <div className="sf-tool-title"><span>Site Forge AI / Website Analyzer</span><span className="sf-tool-status">{completed ? 'COMPLETE' : running ? 'RUNNING' : failed ? 'FAILED' : 'READY'}</span></div>

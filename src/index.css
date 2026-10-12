@@ -37,16 +37,25 @@
 @media(max-width:620px){.sf-ready-actions{width:100%}.sf-ready-actions .sf-button{flex:1;min-width:0}}
 
 
-/* Unified Site Forge maroon palette: match the Website Analyzer panel throughout the app. */
-:root{--sf-maroon:#450a0a;--sf-maroon-2:#7f1d1d;--sf-maroon-3:#991b1b;--sf-accent:#dc2626;--sf-accent-soft:#f87171}
-.sf-shell{--tw-ring-color:rgba(153,27,27,.5)}
-.sf-shell [class*="bg-indigo-950"]{background-color:#17090c!important}
-.sf-shell [class*="bg-indigo-900"]{background-color:#2b0b10!important}
-.sf-shell [class*="bg-indigo-800"]{background-color:#450a0a!important}
-.sf-shell [class*="bg-indigo-700"],.sf-shell [class*="bg-indigo-600"]{background-color:#991b1b!important}
-.sf-shell [class*="hover\:bg-indigo-500"]:hover,.sf-shell [class*="hover\:bg-indigo-400"]:hover{background-color:#b91c1c!important}
-.sf-shell [class*="border-indigo-"]{border-color:#7f1d1d!important}
-.sf-shell [class*="text-indigo-300"],.sf-shell [class*="text-indigo-400"],.sf-shell [class*="text-indigo-500"]{color:#f87171!important}
-.sf-shell [class*="ring-indigo-"]{--tw-ring-color:rgba(153,27,27,.55)!important}
-.sf-shell [class*="shadow-indigo-"]{--tw-shadow-color:rgba(127,29,29,.3)!important}
-.sf-shell button:focus-visible,.sf-shell a:focus-visible,.sf-shell input:focus-visible,.sf-shell select:focus-visible{outline-color:#b91c1c}
+/* Unified Site Forge maroon design system: apply consistently to workspace, admin, settings, billing and project pages while preserving the analyzer layout. */
+:root{--sf-maroon-950:#160608;--sf-maroon-900:#2a090d;--sf-maroon-800:#450a0a;--sf-maroon-700:#7f1d1d;--sf-maroon-600:#991b1b;--sf-maroon-500:#dc2626;--sf-maroon-400:#f87171;--sf-panel:#111014;--sf-panel-raised:#191519;--sf-border:#3a252b;}
+html,body{background:#0b090b;color:#f5f0f1;}
+button,[role=button],a{transition-color:.15s ease,border-color .15s ease,background-color .15s ease;}
+.bg-indigo-600,.bg-indigo-500{background-color:var(--sf-maroon-600)!important}
+.hover\:bg-indigo-500:hover,.hover\:bg-indigo-600:hover{background-color:var(--sf-maroon-500)!important}
+.text-indigo-400,.text-indigo-300,.text-indigo-500{color:#f87171!important}
+.border-indigo-500,.border-indigo-600,.border-indigo-500\/50{border-color:#991b1b!important}
+.ring-indigo-500,.focus\:ring-indigo-500:focus{--tw-ring-color:#dc2626!important}
+.bg-\[\#090D16\],.bg-\[\#0D1320\]{background-color:#100b0e!important}
+.bg-slate-950{background-color:#0c080b!important}
+.border-slate-800{border-color:#38252b!important}
+.sf-shell{background:#0b090b;color:#f5f0f1}
+.sf-tool-title{background:linear-gradient(90deg,#450a0a,#991b1b)}
+.sf-button{background:#991b1b;border-color:#7f1d1d;box-shadow:2px 2px 0 #2a090d}
+.sf-button:hover{background:#b91c1c}
+.sf-button-ai{background:#991b1b;border-color:#7f1d1d;box-shadow:2px 2px 0 #2a090d}
+.sf-button-ai:hover{background:#b91c1c}
+.sf-kicker,.sf-icon,.sf-link-button,.sf-console-title span:last-child{color:#f87171}
+.sf-card:hover{border-color:#991b1b}
+/* Keep action controls within mobile cards; long workspace actions wrap instead of overflowing. */
+@media(max-width:640px){.sf-ready-actions .sf-button{white-space:normal}.sf-shell button{max-width:100%}}

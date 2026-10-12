@@ -459,7 +459,7 @@ async function runCrawlWorker(
 
     await updateJobState({ status: 'crawling', currentStep: 'Fetching authorized public pages...' }, 10);
 
-    const maxPages = config.scope === 'SINGLE_PAGE' ? 1 : Math.min(Math.max(config.maxPages || 500, 1), 100000);
+    const maxPages = config.scope === 'SINGLE_PAGE' ? 1 : Math.min(Math.max(config.maxPages || 100000, 1), 100000);
     const queue: { url: string; depth: number }[] = [{ url: rootUrl.toString(), depth: 0 }];
     if (config.scope === 'CUSTOM_LIST' && config.customUrls?.length) {
       for (const custom of config.customUrls) {

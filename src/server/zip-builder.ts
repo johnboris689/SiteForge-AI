@@ -39,6 +39,12 @@ export async function buildProjectZipArchive(
 
     if (details.latestVersion?.previewHtml) {
       zip.file('preview/standalone-preview.html', details.latestVersion.previewHtml);
+      // A root HTML entry makes the preview easy to open in mobile editors such as Acode.
+      // Never overwrite a real project index.html supplied by the generated source tree.
+      if (!targetFiles.some((file: any) => file.filePath.replace(/^\.\//, '') === 'index.html')) {
+        zip.file('index.html', details.latestVersion.previewHtml);
+        fileCount++;
+      }
       fileCount++;
     }
   }

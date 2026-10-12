@@ -1010,7 +1010,7 @@ function App() {
                               onClick={() => setSelectedProjectId(p.id)}
                               className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white whitespace-nowrap"
                             >
-                              Open Code & AI Workspace
+                              Open Code
                             </button>
                           </div>
                         ))}
