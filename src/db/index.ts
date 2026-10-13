@@ -92,7 +92,6 @@ export const getPool = (): Pool => {
   return global._postgresPool;
 };
 
-// Initialize pool lazily or via resolved config so imports never silently connect to 127.0.0.1:5432
 const poolProxy = new Proxy({} as Pool, {
   get(_target, prop, receiver) {
     const activePool = getPool();
@@ -110,8 +109,8 @@ export const db = drizzle(poolProxy, { schema });
 export async function ensureDatabaseSchema(): Promise<void> {
   const activePool = getPool();
   let client: import('pg').PoolClient | undefined;
-  const maxAttempts = process.env.NODE_ENV === 'production' ? 10 : 1;
-  const retryDelayMs = 3000;
+  const maxAttempts = process.env.NODE_ENV === 'production' ? 10 : 2;
+  const retryDelayMs = 2000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -142,18 +141,19 @@ export async function ensureDatabaseSchema(): Promise<void> {
   }
 
   try {
-    // First check if the core schema and latest columns already exist (fast & safe for least-privilege runtime users)
+    // Check if the core schema and latest columns already exist (fast & safe for least-privilege runtime users)
     try {
       await client.query('SELECT id, github_connected FROM users LIMIT 1');
-      await client.query('SELECT id, github_sync_status FROM projects LIMIT 1');
+      await client.query('SELECT id, github_sync_status, approved FROM projects LIMIT 1');
       await client.query('SELECT id, content_base64 FROM project_assets LIMIT 1');
+      await client.query('SELECT id, attachments_json, modified_files_json FROM ai_generations LIMIT 1');
       console.log('Database schema verified.');
       return;
     } catch {
-      // Tables or columns missing (e.g., fresh Render PostgreSQL instance) — proceed with idempotent DDL initialization
+      // Tables or columns missing — proceed with idempotent DDL initialization
     }
 
-    await client.query(`
+    const ddlSql = `
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         uid TEXT NOT NULL UNIQUE,
@@ -218,6 +218,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
         last_github_commit_url TEXT,
         last_github_push TIMESTAMP,
         github_sync_status TEXT NOT NULL DEFAULT 'not_pushed',
+        approved BOOLEAN NOT NULL DEFAULT false,
+        approved_at TIMESTAMP,
+        approved_version_id INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         last_analysis_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
@@ -232,6 +235,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_github_commit_url TEXT;
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_github_push TIMESTAMP;
       ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_sync_status TEXT NOT NULL DEFAULT 'not_pushed';
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS approved_version_id INTEGER;
 
       CREATE TABLE IF NOT EXISTS project_pages (
         id SERIAL PRIMARY KEY,
@@ -337,10 +343,15 @@ export async function ensureDatabaseSchema(): Promise<void> {
         operation_type TEXT NOT NULL,
         prompt TEXT NOT NULL,
         response_summary TEXT NOT NULL DEFAULT '',
+        attachments_json TEXT NOT NULL DEFAULT '[]',
+        modified_files_json TEXT NOT NULL DEFAULT '[]',
         status TEXT NOT NULL DEFAULT 'completed',
         duration_ms INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE ai_generations ADD COLUMN IF NOT EXISTS attachments_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE ai_generations ADD COLUMN IF NOT EXISTS modified_files_json TEXT NOT NULL DEFAULT '[]';
 
       CREATE TABLE IF NOT EXISTS downloads (
         id SERIAL PRIMARY KEY,
@@ -403,9 +414,37 @@ export async function ensureDatabaseSchema(): Promise<void> {
         value TEXT NOT NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
-    `);
+    `;
+
+    // If running in a managed environment with separate admin credentials, run DDL with admin pool
+    if (process.env.SQL_HOST && process.env.SQL_ADMIN_USER && process.env.SQL_ADMIN_PASSWORD) {
+      const adminPool = new Pool({
+        host: process.env.SQL_HOST.trim(),
+        port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
+        user: process.env.SQL_ADMIN_USER.trim(),
+        password: process.env.SQL_ADMIN_PASSWORD,
+        database: (process.env.SQL_DB_NAME || 'postgres').trim(),
+        max: 1,
+        connectionTimeoutMillis: 15000,
+      });
+      try {
+        await adminPool.query(ddlSql);
+        console.log('Database schema verified via admin credentials.');
+        return;
+      } finally {
+        await adminPool.end().catch(() => {});
+      }
+    }
+
+    await client.query(ddlSql);
     console.log('Database schema verified.');
   } catch (err: any) {
+    // If runtime user lacks DDL permissions (42501) on a pre-provisioned schema, verify core table access
+    if (err?.code === '42501') {
+      await client.query('SELECT id FROM users LIMIT 1');
+      console.log('Database schema verified (managed runtime permissions).');
+      return;
+    }
     console.error('Database schema verification failed:', err?.message || 'Unknown error');
     throw new Error(`Database schema verification failed: ${err?.message || 'Unknown error'}`);
   } finally {

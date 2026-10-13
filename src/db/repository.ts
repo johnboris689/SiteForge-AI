@@ -202,13 +202,35 @@ export async function getOrCreateGithubUser(params: {
 }
 
 export async function createLocalUser(email: string, name: string, passwordHash: string) {
+  const normalizedEmail = email.toLowerCase().trim();
+  let existing: (typeof users.$inferSelect)[];
   try {
-    const normalizedEmail = email.toLowerCase().trim();
-    const existing = await db.select().from(users).where(eq(users.email, normalizedEmail));
-    if (existing.length > 0) {
-      throw new Error('An account with this email already exists.');
-    }
+    existing = await db.select().from(users).where(eq(users.email, normalizedEmail));
+  } catch (error: any) {
+    console.error('Database error in createLocalUser lookup:', error);
+    throw new Error('Failed to check existing user account.', { cause: error });
+  }
 
+  if (existing.length > 0) {
+    const current = existing[0];
+    // If the account was created via GitHub/Google OAuth without a local password, attach the new passwordHash
+    if (!current.passwordHash) {
+      const [updated] = await db
+        .update(users)
+        .set({
+          passwordHash,
+          name: name.trim() || current.name,
+        })
+        .where(eq(users.id, current.id))
+        .returning();
+      return updated;
+    }
+    const duplicateError: any = new Error('An account with this email already exists.');
+    duplicateError.code = 'EMAIL_EXISTS';
+    throw duplicateError;
+  }
+
+  try {
     const allUsers = await db.select({ id: users.id }).from(users).limit(1);
     const isSuperAdmin = normalizedEmail === 'talkdavidjohn@gmail.com' || allUsers.length === 0;
     const uid = `local_${crypto.randomUUID()}`;
@@ -337,16 +359,16 @@ export async function setResetToken(userId: number, rawResetToken: string) {
 }
 
 export async function consumeResetTokenAndSetPassword(rawResetToken: string, newPasswordHash: string) {
+  const tokenHash = hashToken(rawResetToken);
+  const rows = await db.select().from(users).where(eq(users.resetTokenHash, tokenHash));
+  if (rows.length === 0) {
+    throw new Error('Invalid or expired password reset token.');
+  }
+  const user = rows[0];
+  if (!user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt) < new Date()) {
+    throw new Error('Password reset token has expired.');
+  }
   try {
-    const tokenHash = hashToken(rawResetToken);
-    const rows = await db.select().from(users).where(eq(users.resetTokenHash, tokenHash));
-    if (rows.length === 0) {
-      throw new Error('Invalid or expired password reset token.');
-    }
-    const user = rows[0];
-    if (!user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt) < new Date()) {
-      throw new Error('Password reset token has expired.');
-    }
     const [updated] = await db
       .update(users)
       .set({

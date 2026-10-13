@@ -134,7 +134,14 @@ export function AuthModal({ isOpen, initialMode = 'login', onClose, onSuccess }:
           body: JSON.stringify({ email, name, password }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Registration failed.');
+        if (!res.ok) {
+          if (data.code === 'EMAIL_EXISTS' || res.status === 409) {
+            setMode('login');
+            setInfoMessage('An account with this email already exists. Switched to Sign In — enter your password or click "Forgot password?" below.');
+            return;
+          }
+          throw new Error(data.error || 'Registration failed.');
+        }
         onSuccess(data.token, data.user);
         onClose();
       } else if (mode === 'forgot') {

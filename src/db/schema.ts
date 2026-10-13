@@ -57,6 +57,9 @@ export const projects = pgTable('projects', {
   lastGithubCommitUrl: text('last_github_commit_url'),
   lastGithubPush: timestamp('last_github_push'),
   githubSyncStatus: text('github_sync_status').notNull().default('not_pushed'), // not_pushed | syncing | synced | failed
+  approved: boolean('approved').notNull().default(false),
+  approvedAt: timestamp('approved_at'),
+  approvedVersionId: integer('approved_version_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastAnalysisAt: timestamp('last_analysis_at').defaultNow().notNull(),
 });
@@ -163,6 +166,8 @@ export const aiGenerations = pgTable('ai_generations', {
   operationType: text('operation_type').notNull(), // recreate | modify | regenerate_file | generate_db | explain_code
   prompt: text('prompt').notNull(),
   responseSummary: text('response_summary').notNull().default(''),
+  attachmentsJson: text('attachments_json').notNull().default('[]'),
+  modifiedFilesJson: text('modified_files_json').notNull().default('[]'),
   status: text('status').notNull().default('completed'),
   durationMs: integer('duration_ms').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),

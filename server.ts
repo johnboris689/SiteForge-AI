@@ -402,6 +402,44 @@ async function startServer() {
       if (!email || !password || password.length < 8) {
         return res.status(400).json({ error: 'Valid email and password (minimum 8 characters) are required.' });
       }
+
+      const existingUser = await getUserByEmail(email);
+      if (existingUser && existingUser.passwordHash) {
+        if (existingUser.status === 'suspended') {
+          return res.status(403).json({ error: 'This account has been suspended by an administrator.' });
+        }
+        const passwordMatches = await bcrypt.compare(password, existingUser.passwordHash);
+        if (passwordMatches) {
+          const token = await createSession(existingUser.id);
+          await createAuditLog({
+            userId: existingUser.id,
+            action: 'USER_LOGIN',
+            status: 'success',
+            details: 'Signed in via signup form with matching credentials',
+            ipAddress: req.ip,
+          });
+          return res.status(200).json({
+            token,
+            user: {
+              id: existingUser.id,
+              uid: existingUser.uid,
+              email: existingUser.email,
+              name: existingUser.name,
+              role: existingUser.role,
+              plan: existingUser.plan,
+              status: existingUser.status,
+              githubConnected: existingUser.githubConnected,
+              githubUsername: existingUser.githubUsername,
+              githubAvatarUrl: existingUser.githubAvatarUrl,
+            },
+          });
+        }
+        return res.status(409).json({
+          error: 'An account with this email already exists. Please sign in with your password or click "Forgot password?" to reset it.',
+          code: 'EMAIL_EXISTS',
+        });
+      }
+
       const passwordHash = await bcrypt.hash(password, 12);
       const user = await createLocalUser(email, name || email.split('@')[0], passwordHash);
       const token = await createSession(user.id);
@@ -424,9 +462,18 @@ async function startServer() {
           role: user.role,
           plan: user.plan,
           status: user.status,
+          githubConnected: user.githubConnected,
+          githubUsername: user.githubUsername,
+          githubAvatarUrl: user.githubAvatarUrl,
         },
       });
     } catch (error: any) {
+      if (error?.code === 'EMAIL_EXISTS') {
+        return res.status(409).json({
+          error: 'An account with this email already exists. Please sign in with your password.',
+          code: 'EMAIL_EXISTS',
+        });
+      }
       res.status(400).json({ error: error.message || 'Registration failed.' });
     }
   });
@@ -885,6 +932,56 @@ async function startServer() {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/projects/:id/mirror/*', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const rawSubpath = ((req.params as any)[0] || 'index.html').replace(/^\/+/, '');
+      const candidates = [rawSubpath, `public/${rawSubpath}`];
+
+      const assets = await db
+        .select()
+        .from(projectAssets)
+        .where(eq(projectAssets.projectId, projectId));
+
+      const matchedAsset = assets.find((a) => {
+        const clean = a.localPath.replace(/^\/+/, '');
+        return candidates.includes(clean) || clean.endsWith(`/${rawSubpath}`);
+      });
+
+      if (matchedAsset) {
+        res.setHeader('Content-Type', matchedAsset.mimeType || 'application/octet-stream');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        if (matchedAsset.contentBase64) {
+          return res.send(Buffer.from(matchedAsset.contentBase64, 'base64'));
+        }
+        return res.send(matchedAsset.contentText || '');
+      }
+
+      const details = await getProjectFullDetails(projectId);
+      const matchedFile = details?.files.find((f) => {
+        const clean = f.filePath.replace(/^\/+/, '');
+        return candidates.includes(clean);
+      });
+      if (matchedFile) {
+        const ext = rawSubpath.split('.').pop()?.toLowerCase();
+        const mime =
+          ext === 'css'
+            ? 'text/css; charset=utf-8'
+            : ext === 'js'
+            ? 'application/javascript; charset=utf-8'
+            : ext === 'svg'
+            ? 'image/svg+xml'
+            : 'text/html; charset=utf-8';
+        res.setHeader('Content-Type', mime);
+        return res.send(matchedFile.content);
+      }
+
+      res.status(404).send('Mirrored resource not found');
+    } catch {
+      res.status(500).send('Failed to serve mirrored resource');
     }
   });
 

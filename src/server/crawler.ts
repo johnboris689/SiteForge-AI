@@ -1218,7 +1218,7 @@ function buildInitialPreviewHtml(
 
 
 function rewriteHtmlForStaticMirror(rawHtml: string, sourceUrl: string, assetMap: Map<string, string>, pageMap: Map<string, string>): string {
-  const $ = cheerio.load(rawHtml || '<html></html>', { decodeEntities: false });
+  const $ = cheerio.load(rawHtml || '<html></html>');
   const toLocal = (raw: string | undefined) => {
     if (!raw || raw.startsWith('#') || raw.startsWith('data:') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('javascript:')) return raw;
     try {
